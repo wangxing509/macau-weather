@@ -1,0 +1,19 @@
+{
+  "name": "澳門天氣 · Macau Weather",
+  "short_name": "澳門天氣",
+  "description": "澳門地球物理暨氣象局（SMG）官方資料實時天氣 App · 7日預報 · 空氣質素 · 月度氣候",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#eef4fb",
+  "theme_color": "#0b3d91",
+  "lang": "zh-CN",
+  "categories": ["weather", "utilities"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
