@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b3d91">
+<meta name="description" content="澳門天氣 App —— 澳門地球物理暨氣象局官方數據 · 實時動態刷新">
+<title>澳門天氣 · Macau Weather</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+  :root{
+    --bg:#eef4fb; --card:#ffffff; --ink:#12314f; --ink2:#5b7699; --ink3:#8ba6c7;
+    --brand:#0b3d91; --cyan:#0aa8e0; --amber:#ffb020; --red:#ff5d5d; --green:#2fbf71;
+    --shadow:0 6px 22px rgba(16,60,120,.10);
+    --r:18px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:"PingFang SC","Microsoft YaHei","Noto Sans SC",-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg); color:var(--ink); min-height:100vh; overscroll-behavior-y:contain;
+    padding-bottom:calc(76px + env(safe-area-inset-bottom));
+    -webkit-font-smoothing:antialiased;
+  }
+  button{font-family:inherit}
+  /* ============ hero ============ */
+  .hero{
+    position:relative; color:#fff; padding:calc(20px + env(safe-area-inset-top)) 20px 22px;
+    border-radius:0 0 30px 30px; overflow:hidden; transition:background 1s ease;
+    box-shadow:0 10px 30px rgba(10,60,140,.25);
+  }
+  .hero::before,.hero::after{content:"";position:absolute;border-radius:50%;background:rgba(255,255,255,.10);pointer-events:none}
+  .hero::before{width:190px;height:190px;top:-70px;right:-50px}
+  .hero::after{width:120px;height:120px;bottom:-50px;left:-30px}
+  .hero.sunny{background:linear-gradient(160deg,#ff9a3c,#ffc46b 55%,#ffd98c)}
+  .hero.cloudy{background:linear-gradient(160deg,#3f7fd6,#6ea8e8 55%,#93c2f2)}
+  .hero.rain{background:linear-gradient(160deg,#2f66b0,#5c8fdc 55%,#7fa9e8)}
+  .hero.storm{background:linear-gradient(160deg,#243a66,#3d5c9e 55%,#5b7bb5)}
+  .hero.heat{background:linear-gradient(160deg,#e2543f,#ff8a5c 55%,#ffb38a)}
+  .hero-head{display:flex;align-items:center;justify-content:space-between;position:relative;z-index:2}
+  .loc{display:flex;align-items:center;gap:6px;font-weight:700;font-size:15px;letter-spacing:1px}
+  .loc svg{width:16px;height:16px}
+  .hero-actions{display:flex;gap:10px;align-items:center}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.22);
+    border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:6px 12px;font-size:12px;font-weight:600;
+    backdrop-filter:blur(6px)}
+  .chip .dot{width:8px;height:8px;border-radius:50%;background:#7dffb0;box-shadow:0 0 8px #7dffb0}
+  .chip.off .dot{background:#ffb3b3;box-shadow:none}
+  .hero-main{display:flex;align-items:center;gap:18px;margin-top:16px;position:relative;z-index:2}
+  .big-temp{font-size:76px;font-weight:800;line-height:.95;text-shadow:0 4px 18px rgba(0,0,0,.18)}
+  .big-temp small{font-size:26px;font-weight:600}
+  .hero-icon{width:96px;height:96px;filter:drop-shadow(0 6px 14px rgba(0,0,0,.25));animation:float 4s ease-in-out infinite}
+  @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+  .hero-desc{margin-top:8px;font-size:15px;font-weight:600;position:relative;z-index:2}
+  .hero-sub{margin-top:4px;font-size:12.5px;opacity:.92;position:relative;z-index:2}
+  .detail-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:18px;position:relative;z-index:2}
+  .detail{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.28);border-radius:14px;
+    padding:10px 6px;text-align:center;backdrop-filter:blur(4px)}
+  .detail .v{font-size:16px;font-weight:800}
+  .detail .k{font-size:10px;opacity:.9;margin-top:2px}
+  /* ============ layout ============ */
+  main{padding:14px 14px 20px;max-width:520px;margin:0 auto}
+  .card{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:16px;margin-top:14px}
+  .card-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .card-h h3{font-size:15px;font-weight:800;display:flex;align-items:center;gap:7px}
+  .card-h h3 .em{font-size:17px}
+  .card-h .more{font-size:11px;color:var(--ink3)}
+  .tag{display:inline-block;background:rgba(11,61,145,.08);color:var(--brand);font-size:10.5px;
+    padding:2px 8px;border-radius:999px;font-weight:700}
+  /* warning strip */
+  .warn-strip{display:flex;gap:8px;overflow-x:auto;padding:2px;-webkit-overflow-scrolling:touch}
+  .warn-strip::-webkit-scrollbar{display:none}
+  .warn-pill{flex:none;font-size:12px;padding:6px 12px;border-radius:999px;border:1px solid var(--ink3);color:var(--ink2);background:#fff}
+  .warn-pill.on{background:rgba(255,93,93,.10);border-color:var(--red);color:#d43d3d;font-weight:700}
+  /* 7-day */
+  .f-list{display:flex;flex-direction:column}
+  .f-row{display:flex;align-items:center;gap:10px;padding:11px 2px;border-bottom:1px solid #eef3fa}
+  .f-row:last-child{border-bottom:none}
+  .f-row .day{width:58px;font-weight:800;font-size:13.5px}
+  .f-row .day small{display:block;font-weight:500;color:var(--ink3);font-size:10.5px}
+  .f-row img{width:40px;height:40px;object-fit:contain}
+  .f-row .desc{flex:1;font-size:12px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .f-row .tmp{font-weight:800;font-size:14px;text-align:right}
+  .f-row .tmp .hi{color:#e2603f}.f-row .tmp .lo{color:var(--ink3);font-weight:600;margin-left:6px}
+  .f-row .hum{font-size:10px;color:var(--ink3);text-align:right}
+  .f-row.hot{background:linear-gradient(90deg,rgba(255,176,32,.10),transparent);border-radius:10px}
+  .badge-focus{font-size:9.5px;background:var(--amber);color:#fff;padding:1px 6px;border-radius:8px;margin-left:4px;font-weight:700}
+  /* AQI */
+  .aqi-scroll{display:flex;gap:8px;overflow-x:auto;padding:2px;-webkit-overflow-scrolling:touch}
+  .aqi-scroll::-webkit-scrollbar{display:none}
+  .aqi-chip{flex:none;min-width:118px;background:#f7fafd;border:1px solid #e5edf7;border-radius:14px;padding:10px}
+  .aqi-chip .n{font-size:11px;color:var(--ink2);font-weight:700}
+  .aqi-chip .b{display:flex;align-items:center;gap:8px;margin-top:6px}
+  .aqi-dot{width:34px;height:34px;border-radius:50%;color:#fff;font-weight:800;font-size:15px;display:flex;align-items:center;justify-content:center}
+  .aqi-chip .l{font-size:10.5px;font-weight:700}
+  .aqi-chip .p{font-size:9.5px;color:var(--ink3);margin-top:4px;line-height:1.4}
+  .aqi-note{margin-top:10px;font-size:11.5px;color:var(--ink2);line-height:1.7;background:#f7fafd;border-radius:12px;padding:10px 12px}
+  /* monthly */
+  .mini-chart{width:100%;overflow-x:auto;margin-top:6px}
+  .tbl{width:100%;border-collapse:collapse;font-size:11.5px;margin-top:8px}
+  .tbl th{background:#f2f7fd;color:var(--brand);font-size:10.5px;padding:6px 4px;position:sticky;top:0}
+  .tbl td{padding:6px 4px;text-align:center;border-bottom:1px solid #eef3fa;white-space:nowrap}
+  .tbl-wrap{max-height:340px;overflow-y:auto;border:1px solid #e5edf7;border-radius:12px;-webkit-overflow-scrolling:touch}
+  .lv{display:inline-block;font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:9px}
+  /* travel */
+  .t-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .t-card{border:1px solid #e5edf7;border-radius:14px;padding:11px;background:#fbfdff}
+  .t-card .td{font-size:13px;font-weight:800}
+  .t-card .td small{color:var(--ink3);font-weight:500}
+  .t-card img{width:34px;height:34px;float:right;object-fit:contain}
+  .t-card .tm{font-size:11px;color:var(--ink2);margin:3px 0 6px}
+  .t-card ul{list-style:none;font-size:10.5px;color:var(--ink2);line-height:1.7}
+  .t-card ul li{padding-left:11px;position:relative}
+  .t-card ul li::before{content:"•";position:absolute;left:0;color:var(--cyan);font-weight:800}
+  .t-card.pending{opacity:.6}
+  .tip{display:inline-block;font-size:9px;font-weight:700;padding:2px 7px;border-radius:8px;margin:2px 2px 0 0}
+  /* seasons */
+  .seasons{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .season{border-radius:14px;padding:12px;border:1px solid #e5edf7}
+  .season h4{font-size:14px;margin-bottom:4px}
+  .season .rg{font-size:10.5px;color:var(--ink3);margin-bottom:6px}
+  .season ul{list-style:none;font-size:10.5px;color:var(--ink2);line-height:1.75}
+  /* about */
+  .about li{list-style:none;font-size:12px;color:var(--ink2);line-height:2;border-bottom:1px dashed #e5edf7}
+  .about li b{color:var(--ink)}
+  .about .dism{font-size:10.5px;color:var(--ink3);line-height:1.8;margin-top:10px}
+  /* ============ bottom nav ============ */
+  nav{
+    position:fixed;left:0;right:0;bottom:0;z-index:50;
+    background:rgba(255,255,255,.96);backdrop-filter:blur(12px);
+    border-top:1px solid #e5edf7;display:flex;
+    padding-bottom:env(safe-area-inset-bottom);
+    box-shadow:0 -6px 20px rgba(16,60,120,.08);
+  }
+  nav a{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 0 7px;
+    font-size:10px;color:var(--ink3);text-decoration:none;font-weight:600}
+  nav a svg{width:22px;height:22px}
+  nav a.on{color:var(--brand)}
+  nav a.on svg{filter:drop-shadow(0 2px 6px rgba(11,61,145,.35))}
+  /* tab panels */
+  .tab{display:none;animation:fadein .35s ease}
+  .tab.on{display:block}
+  @keyframes fadein{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  /* refresh indicator */
+  .pull{position:fixed;top:0;left:0;right:0;z-index:60;text-align:center;font-size:12px;color:var(--ink2);
+    padding:8px;background:rgba(255,255,255,.9);transform:translateY(-100%);transition:transform .2s}
+  .pull.show{transform:translateY(0)}
+  .toast{position:fixed;left:50%;bottom:100px;transform:translateX(-50%) translateY(20px);
+    background:rgba(10,40,80,.92);color:#fff;font-size:12.5px;padding:10px 18px;border-radius:999px;
+    opacity:0;transition:.3s;z-index:80;pointer-events:none;white-space:nowrap}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .foot{text-align:center;font-size:10px;color:var(--ink3);line-height:1.8;margin-top:18px;padding-bottom:8px}
+  .spin{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.4);
+    border-top-color:#fff;border-radius:50%;animation:rot .8s linear infinite;vertical-align:-2px}
+  @keyframes rot{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- 下拉刷新提示 -->
+<div class="pull" id="pullTip">↓ 下拉刷新天氣數據</div>
+<div class="toast" id="toast"></div>
+
+<!-- ============ 首页 Tab ============ -->
+<section class="tab on" id="tab-home">
+  <div class="hero" id="hero">
+    <div class="hero-head">
+      <div class="loc">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.1 2 5 5.1 5 9c0 5.2 7 13 7 13s7-7.8 7-13c0-3.9-3.1-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>
+        澳門 · MACAU
+      </div>
+      <div class="hero-actions">
+        <button class="chip" id="refreshChip" onclick="refreshNow()">
+          <span class="dot" id="statusDot"></span><span id="statusTxt">刷新中</span><span id="cnt" style="opacity:.85"></span>
+        </button>
+      </div>
+    </div>
+    <div class="hero-main">
+      <div>
+        <div class="big-temp"><span id="hTemp">--</span><small>℃</small></div>
+        <div class="hero-desc" id="hDesc">載入中…</div>
+        <div class="hero-sub" id="hSub">體感 -- · 更新 --</div>
+      </div>
+      <img class="hero-icon" id="hIcon" src="icons/icon.svg" alt="">
+    </div>
+    <div class="detail-grid">
+      <div class="detail"><div class="v num" id="dHum">-</div><div class="k">濕度</div></div>
+      <div class="detail"><div class="v num" id="dWind">-</div><div class="k">風</div></div>
+      <div class="detail"><div class="v num" id="dUvi">-</div><div class="k">紫外線</div></div>
+      <div class="detail"><div class="v num" id="dAqi">-</div><div class="k">空氣質素</div></div>
+    </div>
+  </div>
+
+  <main>
+    <div class="card">
+      <div class="card-h"><h3><span class="em">⚠️</span>天氣警告</h3></div>
+      <div class="warn-strip" id="warnStrip"></div>
+      <div style="font-size:11.5px;color:var(--ink2);line-height:1.7;margin-top:10px" id="todayNote"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h3><span class="em">🌿</span>空氣質量指數</h3><span class="more" id="aqiTime"></span></div>
+      <div class="aqi-scroll" id="aqiScroll"></div>
+      <div class="aqi-note" id="aqiNote"></div>
+    </div>
+  </main>
+</section>
+
+<!-- ============ 预报 Tab ============ -->
+<section class="tab" id="tab-forecast">
+  <main style="padding-top:20px">
+    <div class="card">
+      <div class="card-h"><h3><span class="em">📅</span>未來 7 日天氣預報</h3><span class="more" id="fcIssued"></span></div>
+      <div class="f-list" id="fList"></div>
+      <div style="font-size:11px;color:var(--ink3);margin-top:10px;line-height:1.7" id="fcNote"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h3><span class="em">🧳</span>8.19–8.24 出行提醒</h3><span class="more">基於官方預報</span></div>
+      <div class="t-grid" id="tGrid"></div>
+    </div>
+  </main>
+</section>
+
+<!-- ============ 历史 Tab ============ -->
+<section class="tab" id="tab-history">
+  <main style="padding-top:20px">
+    <div class="card">
+      <div class="card-h"><h3><span class="em">🌡️</span>月度氣溫變化</h3><span class="more">2025.01–2026.08</span></div>
+      <div class="mini-chart" id="tempChart"></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3><span class="em">💧</span>月度濕度 / 雨量</h3></div>
+      <div class="mini-chart" id="humChart"></div>
+      <div class="mini-chart" id="rainChart" style="margin-top:12px"></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3><span class="em">📊</span>月度觀測數據</h3><span class="more">官方《氣象觀測月報》</span></div>
+      <div class="tbl-wrap"><table class="tbl" id="monthTable"></table></div>
+      <div style="font-size:10.5px;color:var(--ink3);line-height:1.7;margin-top:10px">2026.07 月報待發佈；2026.08 進行中。穿衣指數依當月平均氣溫與濕度綜合計算。</div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3><span class="em">👕</span>四季穿衣指數</h3></div>
+      <div class="seasons" id="seasons"></div>
+      <div style="font-size:10.5px;color:var(--ink3);line-height:1.7;margin-top:10px">分級：1嚴寒&lt;8℃ · 2冷8–13 · 3較冷13–17 · 4涼17–21 · 5舒適21–25 · 6較熱25–29 · 7熱29–32 · 8酷熱&gt;32℃（濕度大體感更悶熱）</div>
+    </div>
+  </main>
+</section>
+
+<!-- ============ 关于 Tab ============ -->
+<section class="tab" id="tab-about">
+  <main style="padding-top:20px">
+    <div class="card">
+      <div class="card-h"><h3><span class="em">ℹ️</span>關於本 App</h3></div>
+      <ul class="about">
+        <li><b>澳門天氣</b> · Macau Weather v1.0（PWA）</li>
+        <li><b>資料來源</b>：澳門地球物理暨氣象局（SMG）官方開放介面</li>
+        <li><b>實時刷新</b>：預測數據每 5 分鐘自動動態刷新，支援下拉手勢</li>
+        <li><b>離線備份</b>：內置官方數據快照，斷網仍可瀏覽</li>
+        <li><b>托管</b>：GitHub Pages 靜態托管 · 免伺服器</li>
+      </ul>
+      <div class="dism">免責聲明：本 App 數據來源為澳門特別行政區政府地球物理暨氣象局官方公開資料，僅供參考；天氣預報及空氣質素預測請以官方最新發佈為準。本 App 為非官方應用。</div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3><span class="em">📡</span>數據介面</h3></div>
+      <ul class="about" id="apiList"></ul>
+    </div>
+    <div class="foot">澳門天氣 · 地球物理暨氣象局官方數據<br>Made for 澳門 · powered by SMG Open API</div>
+  </main>
+</section>
+
+<!-- ============ 底部导航 ============ -->
+<nav>
+  <a href="#home" data-tab="home" class="on">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9 21v-6h6v6"/></svg>
+    天氣
+  </a>
+  <a href="#forecast" data-tab="forecast">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+    7日預報
+  </a>
+  <a href="#history" data-tab="history">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 7v5l3 3"/></svg>
+    歷史
+  </a>
+  <a href="#about" data-tab="about">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="8" r=".5" fill="currentColor"/></svg>
+    關於
+  </a>
+</nav>
+
+<script>
+"use strict";
+/* ============================================================
+   澳門天氣 App —— SMG 官方資料 · 實時動態刷新 · GitHub Pages 靜態托管
+   ============================================================ */
+const API = {
+  allweather: "https://new-api.smg.gov.mo/weather_v2?selection=allweather&lang=c",
+  hoApi:      "https://new-api.smg.gov.mo/weather_v2?selection=ho_api",
+  hoHistory:  "https://new-api.smg.gov.mo/api?selection=ho_api_history.json",
+  foreIqa:    "https://new-api.smg.gov.mo/weather_v2?selection=foreiqa&lang=c"
+};
+const REFRESH_MS = 5 * 60 * 1000;
+const FALLBACK = {
+  allweather: {"c_actual_brief":"{\"ActualWeatherBrief\":{\"System\":[{\"SysAuthor\":[\"DINF\"],\"SysPubdate\":[\"2026-08-16 09:55\"],\"SysLanguage\":[\"0\"]}],\"Custom\":[{\"ValidFor\":[\"2026-08-16 10:00\"],\"Temperature\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"3\"],\"Value\":[\"31\"]}],\"Humidity\":[{\"MeasureUnit\":[\"%\"],\"Type\":[\"3\"],\"Value\":[\"75\"]}],\"WindSpeed\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"6\"],\"WindSpeedDescription\":[\"å¾®é¢¨\"]}],\"WindDirection\":[{\"MeasureUnit\":[\"Â°\"],\"Type\":[\"3\"],\"Value\":[\"NW\"],\"WindDescription\":[\"è¥¿å\"]}],\"Icon\":[{\"IconName\":[\"ww-c02.gif\"],\"IconURL\":[\"https://www.smg.gov.mo/icons/weatherIcon/ww-c02.gif\"]}],\"WeatherStatus\":[\"02\"],\"FeelsLikeLevel\":[\"8\"],\"FeelsLikeDescription\":[\"é·ç±\"]}]}}","c_4daysforecast":"{\"FourDaysForecast\":{\"$\":{\"xmlns:xsi\":\"http://www.w3.org/2001/XMLSchema-instance\",\"xsi:noNamespaceSchemaLocation\":\"4daysweatherforecast.xsd\"},\"System\":[{\"SysAuthor\":[\"SMG-InfoGrp\"],\"SysPubdate\":[\"2018-08-30 09:06\"],\"SysLanguage\":[\"0\"]}],\"Custom\":[{\"WeatherForecast\":[{\"ValidFor\":[\"2018-08-15\"],\"Icon\":[{\"IconName\":[\"ww-c29.gif\"],\"IconURL\":[\"http://www.smg.gov.mo/icons/weatherIcon/ww-c29.gif\"]}],\"WeatherStatus\":[\"29\"],\"Temperature\":[{\"Type\":[\"1\"],\"MeasureUnit\":[\"Â°C\"],\"Value\":[\"31\"]},{\"Type\":[\"2\"],\"MeasureUnit\":[\"Â°C\"],\"Value\":[\"26\"]}],\"Humidity\":[{\"Type\":[\"1\"],\"MeasureUnit\":[\"%\"],\"Value\":[\"98\"]},{\"Type\":[\"2\"],\"MeasureUnit\":[\"%\"],\"Value\":[\"75\"]}],\"WeatherDescription\":[\"å¤é²ï¼ç­æ«æéæé½åãæå¹¾é£é·é¨ãå¹4è³5ç´æ±è³æ±åé¢¨åæé£é¢¨ã\"]},{\"ValidFor\":[\"2018-08-16\"],\"Icon\":[{\"IconName\":[\"ww-c16.gif\"],\"IconURL\":[\"http://www.smg.gov.mo/icons/weatherIcon/ww-c16.gif\"]}],\"WeatherStatus\":[\"16\"],\"Temperature\":[{\"Type\":[\"1\"],\"MeasureUnit\":[\"Â°C\"],\"Value\":[\"30\"]},{\"Type\":[\"2\"],\"MeasureUnit\":[\"Â°C\"],\"Value\":[\"25\"]}],\"Humidity\":[{\"Type\":[\"1\"],\"MeasureUnit\":[\"%\"],\"Value\":[\"98\"]},{\"Type\":[\"2\"],\"MeasureUnit\":[\"%\"],\"Value\":[\"75\"]}],\"WeatherDescription\":[\"å¤§è´å¤é²ãæå¹¾é£é·é¨ãå¹4è³5ç´æ±åé¢¨åæé£é¢¨ã\"]},{\"ValidFor\":[\"2018-08-17\"],\"Icon\":[{\"IconName\":[\"ww-c16.gif\"],\"IconURL\":[\"http://www.smg.gov.mo/icons/weatherIcon/ww-c16.gif\"]}],\"WeatherStatus\":[\"16\"],\"Temperature\":[{\"Type\":[\"1\"],\"MeasureUnit\":[\"Â°C\"],\"Value\":[\"30\"]},{\"Type\":[\"2\"],\"MeasureUnit\":[\"Â°C\"],\"Value\":[\"26\"]}],\"Humidity\":[{\"Type\":[\"1\"],\"MeasureUnit\":[\"%\"],\"Value\":[\"95\"]},{\"Type\":[\"2\"],\"MeasureUnit\":[\"%\"],\"Value\":[\"70\"]}],\"WeatherDescription\":[\"å¤§è´å¤é²ãæå¹¾é£é·é¨ãå¹2è³4ç´ååé¢¨åæé£é¢¨ã\"]},{\"ValidFor\":[\"2018-08-18\"],\"Icon\":[{\"IconName\":[\"ww-c16.gif\"],\"IconURL\":[\"http://www.smg.gov.mo/icons/weatherIcon/ww-c16.gif\"]}],\"WeatherStatus\":[\"16\"],\"Temperature\":[{\"Type\":[\"1\"],\"MeasureUnit\":[\"Â°C\"],\"Value\":[\"31\"]},{\"Type\":[\"2\"],\"MeasureUnit\":[\"Â°C\"],\"Value\":[\"26\"]}],\"Humidity\":[{\"Type\":[\"1\"],\"MeasureUnit\":[\"%\"],\"Value\":[\"95\"]},{\"Type\":[\"2\"],\"MeasureUnit\":[\"%\"],\"Value\":[\"70\"]}],\"WeatherDescription\":[\"å¤§è´å¤é²ãæå¹¾é£é©é¨ãå¹3è³4ç´åè³è¥¿åé¢¨ã\"]}]}]}}","c_7daysforecast":"{\"SevenDaysForecast\":{\"$\":{\"xmlns:xsi\":\"http://www.w3.org/2001/XMLSchema-instance\",\"xsi:noNamespaceSchemaLocation\":\"7daysweatherforecast.xsd\"},\"System\":[{\"SysAuthor\":[\"SMG-InfoGrp\"],\"SysPubdate\":[\"2026-08-16 09:00\"],\"SysLanguage\":[\"0\"]}],\"Custom\":[{\"WeatherForecast\":[{\"AstronomicalTide\":[\"NIL\"],\"ValidFor\":[\"2026-08-16\"],\"c_DayOfWeek\":[\"æ¥\"],\"Icon\":[{\"IconName\":[\"ww-c02.gif\"],\"IconURL\":[\"http://www.smg.gov.mo/icons/weatherIcon/ww-c02.gif\"]}],\"WeatherStatus\":[\"02\"],\"Temperature\":[{\"Type\":[\"1\"],\"MeasureUnit\":[\"Â°C\"],\"Value\":[\"32\"]},{\"Type\":[\"2\"],\"MeasureUnit\":[\"Â°C\"],\"Value\":[\"27\"]}],\"Humidity\":[{\"Type\":[\"1\"],\"MeasureUnit\":[\"%\"],\"Value\":[\"95\"]},{\"Type\":[\"2\"],\"MeasureUnit\":[\"%\"],\"Value\":[\"70\"]}],\"WeatherDescription\":[\"å¤©æ°£é·ç±ãå¤é²ï¼é¨ä»½æéæé½åãæä¸å©é£é©é¨ãå¹2è³4ç´è¥¿åé¢¨ã\"]},{\"AstronomicalTide\":[\"NIL\"],\"ValidFor\":[\"2026-08-17\"],\"c_DayOfWeek\":[\"ä¸\"],\"Icon\":[{\"IconName\":[\"ww-c29.gif\"],\"IconURL\":[\"http://www.smg.gov.mo/icons/weatherIcon/ww-c29.gif\"]}],\"WeatherStatus\":[\"29\"],\"Temperature\":[{\"Type\":[\"1\"],\"MeasureUnit\":[\"Â°C\"],\"Value\":[\"32\"]},{\"Type\":[\"2\"],\"MeasureUnit\":[\"Â°C\"],\"Value\":[\"26\"]}],\"Humidity\":[{\"Type\":[\"1\"],\"MeasureUnit\":[\"%\"],\"Value\":[\"98\"]},{\"Type\":[\"2\"],\"MeasureUnit\":[\"%\"],\"Value\":[\"70\"]}],\"WeatherDescription\":[\"å¤©æ°£é·ç±ãå¤é²ï¼ç­æ«æéæé½åãæå¹¾é£é©é¨ãå¹å¾®é¢¨ã\"]},{\"AstronomicalTide\":[\"NIL\"],\"ValidFor\":[\"2026-08-18\"],\"c_DayOfWeek\":[\"äº\"],\"Icon\":[{\"IconName\":[\"ww-c18.gif\"],\"IconURL\":[\"http://www.smg.gov.mo/icons/weatherIcon/ww-c18.gif\"]}],\"WeatherStatus\":[\"18\"],\"Temperature\":[{\"Type\":[\"1\"],\"MeasureUnit\":[\"Â°C\"],\"Value\":[\"30\"]},{\"Type\":[\"2\"],\"MeasureUnit\":[\"Â°C\"],\"Value\":[\"26\"]}],\"Humidity\":[{\"Type\":[\"1\"],\"MeasureUnit\":[\"%\"],\"Value\":[\"98\"]},{\"Type\":[\"2\"],\"MeasureUnit\":[\"%\"],\"Value\":[\"75\"]}],\"WeatherDescription\":[\"å¤§è´å¤é²ãæå¹¾é£é©é¨åé·æ´ãå¹3è³4ç´æ±è³æ±åé¢¨ï¼éä¸­5ç´åæé£é¢¨ã\"]},{\"AstronomicalTide\":[\"NIL\"],\"ValidFor\":[\"2026-08-19\"],\"c_DayOfWeek\":[\"ä¸\"],\"Icon\":[{\"IconName\":[\"ww-c18.gif\"],\"IconURL\":[\"http://www.smg.gov.mo/icons/weatherIcon/ww-c18.gif\"]}],\"WeatherStatus\":[\"18\"],\"Temperature\":[{\"Type\":[\"1\"],\"MeasureUnit\":[\"Â°C\"],\"Value\":[\"29\"]},{\"Type\":[\"2\"],\"MeasureUnit\":[\"Â°C\"],\"Value\":[\"26\"]}],\"Humidity\":[{\"Type\":[\"1\"],\"MeasureUnit\":[\"%\"],\"Value\":[\"98\"]},{\"Type\":[\"2\"],\"MeasureUnit\":[\"%\"],\"Value\":[\"80\"]}],\"WeatherDescription\":[\"å¤§è´å¤é²ãéä¸­æé©é¨ãæå¹¾é£é·æ´ãå¹4è³5ç´åæ±é¢¨åæé£é¢¨ã\"]},{\"AstronomicalTide\":[\"NIL\"],\"ValidFor\":[\"2026-08-20\"],\"c_DayOfWeek\":[\"å\"],\"Icon\":[{\"IconName\":[\"ww-c18.gif\"],\"IconURL\":[\"http://www.smg.gov.mo/icons/weatherIcon/ww-c18.gif\"]}],\"WeatherStatus\":[\"18\"],\"Temperature\":[{\"Type\":[\"1\"],\"MeasureUnit\":[\"Â°C\"],\"Value\":[\"29\"]},{\"Type\":[\"2\"],\"MeasureUnit\":[\"Â°C\"],\"Value\":[\"26\"]}],\"Humidity\":[{\"Type\":[\"1\"],\"MeasureUnit\":[\"%\"],\"Value\":[\"98\"]},{\"Type\":[\"2\"],\"MeasureUnit\":[\"%\"],\"Value\":[\"80\"]}],\"WeatherDescription\":[\"å¤§è´å¤é²ãéä¸­æé©é¨ãæå¹¾é£é·æ´ãå¹4è³5ç´åæ±é¢¨ï¼éä¸­6ç´åæé£é¢¨ã\"]},{\"AstronomicalTide\":[\"NIL\"],\"ValidFor\":[\"2026-08-21\"],\"c_DayOfWeek\":[\"äº\"],\"Icon\":[{\"IconName\":[\"ww-c18.gif\"],\"IconURL\":[\"http://www.smg.gov.mo/icons/weatherIcon/ww-c18.gif\"]}],\"WeatherStatus\":[\"18\"],\"Temperature\":[{\"Type\":[\"1\"],\"MeasureUnit\":[\"Â°C\"],\"Value\":[\"28\"]},{\"Type\":[\"2\"],\"MeasureUnit\":[\"Â°C\"],\"Value\":[\"25\"]}],\"Humidity\":[{\"Type\":[\"1\"],\"MeasureUnit\":[\"%\"],\"Value\":[\"98\"]},{\"Type\":[\"2\"],\"MeasureUnit\":[\"%\"],\"Value\":[\"80\"]}],\"WeatherDescription\":[\"å¤é²ãæé©é¨ãæå¹¾é£é·æ´ãå¹4è³6ç´æ±è³æ±åé¢¨åæé£é¢¨ã\"]},{\"AstronomicalTide\":[\"NIL\"],\"ValidFor\":[\"2026-08-22\"],\"c_DayOfWeek\":[\"å­\"],\"Icon\":[{\"IconName\":[\"ww-c18.gif\"],\"IconURL\":[\"http://www.smg.gov.mo/icons/weatherIcon/ww-c18.gif\"]}],\"WeatherStatus\":[\"18\"],\"Temperature\":[{\"Type\":[\"1\"],\"MeasureUnit\":[\"Â°C\"],\"Value\":[\"29\"]},{\"Type\":[\"2\"],\"MeasureUnit\":[\"Â°C\"],\"Value\":[\"25\"]}],\"Humidity\":[{\"Type\":[\"1\"],\"MeasureUnit\":[\"%\"],\"Value\":[\"98\"]},{\"Type\":[\"2\"],\"MeasureUnit\":[\"%\"],\"Value\":[\"80\"]}],\"WeatherDescription\":[\"å¤é²ãæé©é¨ãæå¹¾é£é·æ´ãå¹4è³5ç´ååé¢¨åæé£é¢¨ã\"]}],\"IssuedTime\":[\"2026-08-16 09:00\"]}]}}","c_TemperatureIndexForecast":"{\"ForecastTemperatureIndex\":{\"System\":[{\"SysPubdate\":[\"2020-12-28 12:00\"],\"SysLanguage\":[\"0\"]}],\"Custom\":[{\"TemperatureIndex\":[{\"ValidFor\":[\"2020-12-28\"],\"Category\":[\"æ®é\"],\"Color\":[\"ç¶ è²\"],\"Level\":[\"0\"],\"Description\":[\"é æ¸¬12æ28æ¥æº«åº¦ææ¸çºæ®éã\"],\"Icon\":[{\"IconName\":[\"tindex3.jpg\"],\"IconURL\":[\"http://www.smg.gov.mo/icons/tindex/tindex3.jpg\"]}]}]}]}}","c_typhoon":"{\"TyphoonWarning\":{\"$\":{\"xmlns:xsi\":\"http://www.w3.org/2001/XMLSchema-instance\",\"xsi:noNamespaceSchemaLocation\":\"Typhoon.xsd\"},\"System\":[{\"SysAuthor\":[\"SMG\"],\"SysPubdate\":[\"2026-07-26 19:00 GMT+8\"],\"SysLanguage\":[\"0\"]}],\"Custom\":[{\"TropicalCyclone\":[{\"Tcid\":[\"NIL\"],\"Smgid\":[\"\"],\"Name\":[\"NIL\"],\"Warncode\":[\"NIL\"],\"Action\":[\"NIL\"],\"IssuedAt\":[\"2026-07-26 19:00\"],\"SignalChangedAt\":[\"\"],\"Inforce\":[\"0\"],\"Status\":[\"0\"],\"SigUpdate\":[\"0\"],\"InforceChange\":[\"\"],\"IssuedAtChange\":[\"\"],\"Description\":[\"ç¾æä¸¦æ²æç±å¸¶æ°£æä¿¡èã\"],\"Major\":[\"ç¾æä¸¦æ²æç±å¸¶æ°£æä¿¡èã\"],\"Minor\":[\"\"],\"TTS\":[\"\"],\"Image\":[{\"ImageURL\":[\"https://xml.smg.gov.mo/typhoon/ty_channel.gif\"]}],\"Icon\":[{\"IconURL\":[\"\"]}],\"Misc\":[\"ç¾æä¸¦æ²æç±å¸¶æ°£æä¿¡èã\"]}]}]}}","c_rainstorm":"{\"RainstormWarning\":{\"$\":{\"xmlns:xsi\":\"http://www.w3.org/2001/XMLSchema-instance\",\"xsi:noNamespaceSchemaLocation\":\"Rainstorm.xsd\"},\"System\":[{\"SysAuthor\":[\"SMG\"],\"SysPubdate\":[\"2026-08-03 06:45 GMT+8\"],\"SysLanguage\":[\"0\"]}],\"ReportInfo\":[{\"ReportTitle\":[\"RAINSTORM\"],\"ReportType\":[\"WARNING\"],\"ReportNo\":[\"\"],\"RecordId\":[\"\"]}],\"Custom\":[{\"Rainstorm\":[{\"Warncode\":[\"NIL\"],\"Action\":[\"NIL\"],\"IssuedAt\":[\"2026-08-03 06:45\"],\"SignalChangedAt\":[\"\"],\"Inforce\":[\"0\"],\"Status\":[\"0\"],\"Icon\":[{\"IconURL\":[\"\"]}],\"Description\":[\"ç¾ææ²ææ´é¨è­¦åä¿¡èã\"],\"TTS\":[\"\"],\"Complementary\":[{\"Tips\":[\"\"],\"Other\":[\"\"]}]}]}]}}","c_monsoon":"{\"MonsoonWarning\":{\"$\":{\"xmlns:xsi\":\"http://www.w3.org/2001/XMLSchema-instance\",\"xsi:noNamespaceSchemaLocation\":\"Monsoon.xsd\"},\"System\":[{\"SysAuthor\":[\"SMG\"],\"SysPubdate\":[\"2026-07-06 18:30 GMT+8\"],\"SysLanguage\":[\"0\"]}],\"ReportInfo\":[{\"ReportType\":[\"WARNING\"],\"ReportNo\":[\"\"],\"RecordId\":[\"\"]}],\"Custom\":[{\"Monsoon\":[{\"Action\":[\"NIL\"],\"IssuedAt\":[\"2026-07-06 18:30\"],\"SignalChangedAt\":[\"\"],\"Status\":[\"0\"],\"Icon\":[{\"IconURL\":[\"\"]}],\"Description\":[\"ç¾ææ²æå­£åé¢¨é»çè­¦åã\"],\"TTS\":[\"\"]}]}]}}","c_thunderstorm":"{\"ThunderstormWarning\":{\"$\":{\"xmlns:xsi\":\"http://www.w3.org/2001/XMLSchema-instance\",\"xsi:noNamespaceSchemaLocation\":\"Thunderstorm.xsd\"},\"System\":[{\"SysAuthor\":[\"SMG\"],\"SysPubdate\":[\"2026-08-15 08:25 GMT+8\"],\"SysLanguage\":[\"0\"]}],\"ReportInfo\":[{\"ReportTitle\":[\"THUNDERSTORM\"],\"ReportType\":[\"WARNING\"],\"ReportNo\":[\"\"],\"RecordId\":[\"\"]}],\"Custom\":[{\"Thunderstorm\":[{\"Action\":[\"NIL\"],\"IssuedAt\":[\"2026-08-15 08:25\"],\"SignalChangedAt\":[\"\"],\"Status\":[\"0\"],\"Icon\":[{\"IconURL\":[\"\"]}],\"Description\":[\"ç¾ææ²æé·æ´è­¦åä¿¡èã\"],\"TTS\":[\"\"],\"Complementary\":[{\"Other\":[\"\"]}]}]}]}}","c_stormsurge":"{\"StormsurgeWarning\":{\"$\":{\"xmlns:xsi\":\"http://www.w3.org/2001/XMLSchema-instance\",\"xsi:noNamespaceSchemaLocation\":\"Stormsurge.xsd\"},\"System\":[{\"SysAuthor\":[\"SMG\"],\"SysPubdate\":[\"2025-10-05 13:00 GMT+8\"],\"SysLanguage\":[\"0\"]}],\"ReportInfo\":[{\"ReportType\":[\"WARNING\"],\"ReportNo\":[\"\"],\"RecordId\":[\"\"]}],\"Custom\":[{\"Stormsurge\":[{\"Warncode\":[\"NIL\"],\"Action\":[\"NIL\"],\"IssuedAt\":[\"2025-10-05 13:00\"],\"Inforce\":[\"0\"],\"Status\":[\"0\"],\"Icon\":[{\"IconURL\":[\"\"]}],\"Description\":[\"ç¾ææ²æé¢¨æ´æ½®è­¦åã\"],\"TTS\":[\"\"],\"Misc\":[\"\"],\"Complementary\":[{\"AffectedAreas\":[{\"Macao\":[\"\"],\"Taipa\":[\"\"],\"Coloane\":[\"\"]}],\"Precautions\":[\"\"]}]}]}]}}","c_actual_temperatureindex":"{\"ActualTemperatureIndex\":{\"System\":[{\"SysAuthor\":[\"DINF\"],\"SysPubdate\":[\"2021-03-12 09:52\"],\"SysLanguage\":[\"0\"]}],\"Custom\":[{\"ValidFor\":[\"2021-03-12 10:00\"],\"TemperatureIndex\":[{\"Type\":[\"\"],\"Category\":[\"\"],\"Color\":[\"\"],\"Level\":[\"\"],\"Icon\":[{\"IconName\":[\"\"],\"IconURL\":[\"\"]}]}]}]}}","c_actualUVI":"{\"ActualUV-Index\":{\"System\":[{\"SysPubdate\":[\"2026-08-16 10:05\"],\"SysLanguage\":[\"0\"]}],\"Custom\":[{\"ActualUVBReport\":[{\"RecordTime\":[\"2026/08/16 09:45\"],\"UV-Index\":[{\"Type\":[\"12\"],\"Value\":[\"5\"]}],\"Icon\":[{\"IconName\":[\"UVIndex05.jpg\"],\"IconURL\":[\"https://xml.smg.gov.mo/icons/UVIndex/UVIndex05.jpg\"]}]}]}]}}","c_actualweather":"{\"ActualWeather\":{\"$\":{\"xmlns:xsi\":\"http://www.w3.org/2001/XMLSchema-instance\",\"xsi:noNamespaceSchemaLocation\":\"actualweather.xsd\"},\"System\":[{\"SysAuthor\":[\"DSMG-DDI\"],\"SysPubdate\":[\"2026-08-16 10:00\"],\"SysLanguage\":[\"0\"],\"version\":[\"1.04\"]}],\"Custom\":[{\"WeatherStationInfo\":[{\"Location\":[{\"Code\":[\"FM\"],\"Name\":[\"æ¾³é\"]},{\"Code\":[\"TG\"],\"Name\":[\"æ°¹ä»\"]},{\"Code\":[\"DC\"],\"Name\":[\"è·¯ç°\"]}]}],\"WeatherReport\":[{\"station\":[{\"$\":{\"code\":\"DP\"},\"stationname\":[\"ç´å¿µå­«ä¸­å±±å¸æ¿å¬å\"],\"RecordTime\":[\"2026-08-16 10:00\"],\"Temperature_daily_max\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"8\"],\"Value\":[\"32\"],\"dValue\":[\"32.4\"]}],\"Temperature_daily_min\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"9\"],\"Value\":[\"28\"],\"dValue\":[\"28.5\"]}],\"Temperature\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"3\"],\"Value\":[\"32\"],\"dValue\":[\"32.4\"]}],\"Humidity\":[{\"MeasureUnit\":[\"%\"],\"Type\":[\"3\"],\"Value\":[\"69\"],\"dValue\":[\"69\"]}],\"DewPoint\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"3\"],\"Value\":[\"26\"],\"dValue\":[\"26.1\"]}],\"WindGust\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"12\"],\"dValue\":[\"12.2\"]}],\"WindSpeed\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"5\"],\"dValue\":[\"4.7\"]}],\"Rainfall\":[{\"MeasureUnit\":[\"mm\"],\"Type\":[\"3\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]},{\"MeasureUnit\":[\"mm\"],\"Type\":[\"4\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]},{\"MeasureUnit\":[\"mm\"],\"Type\":[\"5\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]}],\"WindDirection\":[{\"MeasureUnit\":[\"Â°\"],\"Type\":[\"3\"],\"Value\":[\"NNW\"],\"dValue\":[\"NNW\"],\"Degree\":[\"339\"],\"WindDescription\":[\"è¥¿ååå\"]}]}]},{\"station\":[{\"$\":{\"code\":\"EM\"},\"stationname\":[\"é»æ²ç°\"],\"RecordTime\":[\"2026-08-16 10:00\"],\"Temperature_daily_max\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"8\"],\"Value\":[\"32\"],\"dValue\":[\"32.0\"]}],\"Temperature_daily_min\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"9\"],\"Value\":[\"29\"],\"dValue\":[\"29.4\"]}],\"Temperature\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"3\"],\"Value\":[\"32\"],\"dValue\":[\"32.0\"]}],\"Humidity\":[{\"MeasureUnit\":[\"%\"],\"Type\":[\"3\"],\"Value\":[\"67\"],\"dValue\":[\"67\"]}],\"DewPoint\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"3\"],\"Value\":[\"25\"],\"dValue\":[\"25.2\"]}],\"WindGust\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"8\"],\"dValue\":[\"8.3\"]}],\"WindSpeed\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"3\"],\"dValue\":[\"3.2\"]}],\"Rainfall\":[{\"MeasureUnit\":[\"mm\"],\"Type\":[\"3\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]},{\"MeasureUnit\":[\"mm\"],\"Type\":[\"4\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]},{\"MeasureUnit\":[\"mm\"],\"Type\":[\"5\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]}],\"WindDirection\":[{\"MeasureUnit\":[\"Â°\"],\"Type\":[\"3\"],\"Value\":[\"NNE\"],\"dValue\":[\"NNE\"],\"Degree\":[\"21\"],\"WindDescription\":[\"æ±ååå\"]}]}]},{\"station\":[{\"$\":{\"code\":\"FM\"},\"stationname\":[\"å¤§ç®å°\"],\"RecordTime\":[\"2026-08-16 10:00\"],\"Temperature_daily_max\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"8\"],\"Value\":[\"31\"],\"dValue\":[\"31.4\"]}],\"Temperature_daily_min\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"9\"],\"Value\":[\"28\"],\"dValue\":[\"28.2\"]}],\"Temperature\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"3\"],\"Value\":[\"31\"],\"dValue\":[\"31.4\"]}],\"Humidity\":[{\"MeasureUnit\":[\"%\"],\"Type\":[\"3\"],\"Value\":[\"70\"],\"dValue\":[\"70\"]}],\"DewPoint\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"3\"],\"Value\":[\"25\"],\"dValue\":[\"25.1\"]}],\"WindGust\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"13\"],\"dValue\":[\"13.0\"]}],\"WindSpeed\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"8\"],\"dValue\":[\"7.6\"]}],\"Rainfall\":[{\"MeasureUnit\":[\"mm\"],\"Type\":[\"3\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]},{\"MeasureUnit\":[\"mm\"],\"Type\":[\"4\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]},{\"MeasureUnit\":[\"mm\"],\"Type\":[\"5\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]}],\"WindDirection\":[{\"MeasureUnit\":[\"Â°\"],\"Type\":[\"3\"],\"Value\":[\"NW\"],\"dValue\":[\"NW\"],\"Degree\":[\"320\"],\"WindDescription\":[\"è¥¿å\"]}]}]},{\"station\":[{\"$\":{\"code\":\"PE\"},\"stationname\":[\"å¤æ¸¯\"],\"RecordTime\":[\"2026-08-16 10:00\"],\"Temperature_daily_max\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"8\"],\"Value\":[\"32\"],\"dValue\":[\"32.3\"]}],\"Temperature_daily_min\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"9\"],\"Value\":[\"29\"],\"dValue\":[\"28.6\"]}],\"Temperature\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"3\"],\"Value\":[\"32\"],\"dValue\":[\"32.0\"]}],\"Humidity\":[{\"MeasureUnit\":[\"%\"],\"Type\":[\"3\"],\"Value\":[\"67\"],\"dValue\":[\"67\"]}],\"DewPoint\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"3\"],\"Value\":[\"25\"],\"dValue\":[\"25.1\"]}],\"WindGust\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"10\"],\"dValue\":[\"9.7\"]}],\"WindSpeed\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"5\"],\"dValue\":[\"5.0\"]}],\"Rainfall\":[{\"MeasureUnit\":[\"mm\"],\"Type\":[\"3\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]},{\"MeasureUnit\":[\"mm\"],\"Type\":[\"4\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]},{\"MeasureUnit\":[\"mm\"],\"Type\":[\"5\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]}],\"WindDirection\":[{\"MeasureUnit\":[\"Â°\"],\"Type\":[\"3\"],\"Value\":[\"NW\"],\"dValue\":[\"NW\"],\"Degree\":[\"324\"],\"WindDescription\":[\"è¥¿å\"]}],\"MeanSeaLevelPressure\":[{\"MeasureUnit\":[\"hPa\"],\"Type\":[\"3\"],\"Value\":[\"1004.1\"],\"dValue\":[\"1004.1\"]}],\"StationPressure\":[{\"MeasureUnit\":[\"hPa\"],\"Type\":[\"3\"],\"Value\":[\"1002.2\"],\"dValue\":[\"1002.2\"]}]}]},{\"station\":[{\"$\":{\"code\":\"MM\"},\"stationname\":[\"åª½é£\"],\"RecordTime\":[\"2026-08-16 10:00\"],\"Temperature_daily_max\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"8\"],\"Value\":[\"31\"],\"dValue\":[\"31.4\"]}],\"Temperature_daily_min\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"9\"],\"Value\":[\"28\"],\"dValue\":[\"28.4\"]}],\"Temperature\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"3\"],\"Value\":[\"31\"],\"dValue\":[\"31.3\"]}],\"Humidity\":[{\"MeasureUnit\":[\"%\"],\"Type\":[\"3\"],\"Value\":[\"70\"],\"dValue\":[\"70\"]}],\"DewPoint\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"3\"],\"Value\":[\"25\"],\"dValue\":[\"25.2\"]}],\"WindGust\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"13\"],\"dValue\":[\"13.0\"]}],\"WindSpeed\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"8\"],\"dValue\":[\"8.3\"]}],\"Rainfall\":[{\"MeasureUnit\":[\"mm\"],\"Type\":[\"3\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]},{\"MeasureUnit\":[\"mm\"],\"Type\":[\"4\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]},{\"MeasureUnit\":[\"mm\"],\"Type\":[\"5\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]}],\"WindDirection\":[{\"MeasureUnit\":[\"Â°\"],\"Type\":[\"3\"],\"Value\":[\"SW\"],\"dValue\":[\"SW\"],\"Degree\":[\"220\"],\"WindDescription\":[\"è¥¿å\"]}],\"MeanSeaLevelPressure\":[{\"MeasureUnit\":[\"hPa\"],\"Type\":[\"3\"],\"Value\":[\"1004.5\"],\"dValue\":[\"1004.5\"]}],\"StationPressure\":[{\"MeasureUnit\":[\"hPa\"],\"Type\":[\"3\"],\"Value\":[\"1002.7\"],\"dValue\":[\"1002.7\"]}]}]},{\"station\":[{\"$\":{\"code\":\"TG\"},\"stationname\":[\"å¤§æ½­å±±\"],\"RecordTime\":[\"2026-08-16 10:00\"],\"Temperature_daily_max\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"8\"],\"Value\":[\"32\"],\"dValue\":[\"32.0\"]}],\"Temperature_daily_min\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"9\"],\"Value\":[\"27\"],\"dValue\":[\"27.2\"]}],\"Temperature\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"3\"],\"Value\":[\"31\"],\"dValue\":[\"31.2\"]}],\"Humidity\":[{\"MeasureUnit\":[\"%\"],\"Type\":[\"3\"],\"Value\":[\"75\"],\"dValue\":[\"75\"]}],\"DewPoint\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"3\"],\"Value\":[\"26\"],\"dValue\":[\"26.2\"]}],\"WindGust\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"11\"],\"dValue\":[\"11.2\"]}],\"WindSpeed\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"5\"],\"dValue\":[\"4.7\"]}],\"Rainfall\":[{\"MeasureUnit\":[\"mm\"],\"Type\":[\"3\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]},{\"MeasureUnit\":[\"mm\"],\"Type\":[\"4\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]},{\"MeasureUnit\":[\"mm\"],\"Type\":[\"5\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]}],\"WindDirection\":[{\"MeasureUnit\":[\"Â°\"],\"Type\":[\"3\"],\"Value\":[\"NW\"],\"dValue\":[\"NW\"],\"Degree\":[\"307\"],\"WindDescription\":[\"è¥¿å\"]}],\"MeanSeaLevelPressure\":[{\"MeasureUnit\":[\"hPa\"],\"Type\":[\"3\"],\"Value\":[\"1004.3\"],\"dValue\":[\"1004.3\"]}],\"StationPressure\":[{\"MeasureUnit\":[\"hPa\"],\"Type\":[\"3\"],\"Value\":[\"991.6\"],\"dValue\":[\"991.6\"]}]}]},{\"station\":[{\"$\":{\"code\":\"JA\"},\"stationname\":[\"æ±äºéå¤§é¦¬è·¯\"],\"RecordTime\":[\"2026-08-16 10:00\"],\"Temperature_daily_max\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"8\"],\"Value\":[\"33\"],\"dValue\":[\"32.6\"]}],\"Temperature_daily_min\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"9\"],\"Value\":[\"28\"],\"dValue\":[\"27.9\"]}],\"Temperature\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"3\"],\"Value\":[\"33\"],\"dValue\":[\"32.6\"]}],\"Humidity\":[{\"MeasureUnit\":[\"%\"],\"Type\":[\"3\"],\"Value\":[\"74\"],\"dValue\":[\"74\"]}],\"DewPoint\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"3\"],\"Value\":[\"27\"],\"dValue\":[\"27.4\"]}],\"WindGust\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"11\"],\"dValue\":[\"10.8\"]}],\"WindSpeed\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"5\"],\"dValue\":[\"4.7\"]}],\"Rainfall\":[{\"MeasureUnit\":[\"mm\"],\"Type\":[\"3\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]},{\"MeasureUnit\":[\"mm\"],\"Type\":[\"4\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]},{\"MeasureUnit\":[\"mm\"],\"Type\":[\"5\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]}],\"WindDirection\":[{\"MeasureUnit\":[\"Â°\"],\"Type\":[\"3\"],\"Value\":[\"WSW\"],\"dValue\":[\"WSW\"],\"Degree\":[\"256\"],\"WindDescription\":[\"è¥¿ååè¥¿\"]}],\"MeanSeaLevelPressure\":[{\"MeasureUnit\":[\"hPa\"],\"Type\":[\"3\"],\"Value\":[\"1004.3\"],\"dValue\":[\"1004.3\"]}],\"StationPressure\":[{\"MeasureUnit\":[\"hPa\"],\"Type\":[\"3\"],\"Value\":[\"1003.6\"],\"dValue\":[\"1003.6\"]}]}]},{\"station\":[{\"$\":{\"code\":\"KV\"},\"stationname\":[\"ä¹æ¾³\"],\"RecordTime\":[\"2026-08-16 10:00\"],\"Temperature_daily_max\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"8\"],\"Value\":[\"32\"],\"dValue\":[\"32.0\"]}],\"Temperature_daily_min\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"9\"],\"Value\":[\"27\"],\"dValue\":[\"26.8\"]}],\"Temperature\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"3\"],\"Value\":[\"32\"],\"dValue\":[\"31.6\"]}],\"Humidity\":[{\"MeasureUnit\":[\"%\"],\"Type\":[\"3\"],\"Value\":[\"77\"],\"dValue\":[\"77\"]}],\"DewPoint\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"3\"],\"Value\":[\"27\"],\"dValue\":[\"27.2\"]}],\"WindGust\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"12\"],\"dValue\":[\"11.9\"]}],\"WindSpeed\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"6\"],\"dValue\":[\"5.8\"]}],\"Rainfall\":[{\"MeasureUnit\":[\"mm\"],\"Type\":[\"3\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]},{\"MeasureUnit\":[\"mm\"],\"Type\":[\"4\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]},{\"MeasureUnit\":[\"mm\"],\"Type\":[\"5\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]}],\"WindDirection\":[{\"MeasureUnit\":[\"Â°\"],\"Type\":[\"3\"],\"Value\":[\"WSW\"],\"dValue\":[\"WSW\"],\"Degree\":[\"252\"],\"WindDescription\":[\"è¥¿ååè¥¿\"]}],\"MeanSeaLevelPressure\":[{\"MeasureUnit\":[\"hPa\"],\"Type\":[\"3\"],\"Value\":[\"1004.5\"],\"dValue\":[\"1004.5\"]}],\"StationPressure\":[{\"MeasureUnit\":[\"hPa\"],\"Type\":[\"3\"],\"Value\":[\"1001.3\"],\"dValue\":[\"1001.3\"]}]}]},{\"station\":[{\"$\":{\"code\":\"UM\"},\"stationname\":[\"æ¾³éå¤§å­¸\"],\"RecordTime\":[\"2026-08-16 10:00\"],\"Temperature_daily_max\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"8\"],\"Value\":[\"32\"],\"dValue\":[\"31.7\"]}],\"Temperature_daily_min\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"9\"],\"Value\":[\"28\"],\"dValue\":[\"27.8\"]}],\"Temperature\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"3\"],\"Value\":[\"32\"],\"dValue\":[\"31.6\"]}],\"Humidity\":[{\"MeasureUnit\":[\"%\"],\"Type\":[\"3\"],\"Value\":[\"75\"],\"dValue\":[\"75\"]}],\"DewPoint\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"3\"],\"Value\":[\"27\"],\"dValue\":[\"26.6\"]}],\"WindGust\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"15\"],\"dValue\":[\"15.1\"]}],\"WindSpeed\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"7\"],\"dValue\":[\"7.2\"]}],\"Rainfall\":[{\"MeasureUnit\":[\"mm\"],\"Type\":[\"3\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]},{\"MeasureUnit\":[\"mm\"],\"Type\":[\"4\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]},{\"MeasureUnit\":[\"mm\"],\"Type\":[\"5\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]}],\"WindDirection\":[{\"MeasureUnit\":[\"Â°\"],\"Type\":[\"3\"],\"Value\":[\"SW\"],\"dValue\":[\"SW\"],\"Degree\":[\"237\"],\"WindDescription\":[\"è¥¿å\"]}],\"MeanSeaLevelPressure\":[{\"MeasureUnit\":[\"hPa\"],\"Type\":[\"3\"],\"Value\":[\"1004.1\"],\"dValue\":[\"1004.1\"]}],\"StationPressure\":[{\"MeasureUnit\":[\"hPa\"],\"Type\":[\"3\"],\"Value\":[\"1003.4\"],\"dValue\":[\"1003.4\"]}]}]},{\"station\":[{\"$\":{\"code\":\"DC\"},\"stationname\":[\"è·¯ç°å¸å\"],\"RecordTime\":[\"2026-08-16 10:00\"],\"Temperature_daily_max\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"8\"],\"Value\":[\"32\"],\"dValue\":[\"31.6\"]}],\"Temperature_daily_min\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"9\"],\"Value\":[\"28\"],\"dValue\":[\"27.6\"]}],\"Temperature\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"3\"],\"Value\":[\"32\"],\"dValue\":[\"31.5\"]}],\"Humidity\":[{\"MeasureUnit\":[\"%\"],\"Type\":[\"3\"],\"Value\":[\"72\"],\"dValue\":[\"72\"]}],\"DewPoint\":[{\"MeasureUnit\":[\"Â°C\"],\"Type\":[\"3\"],\"Value\":[\"26\"],\"dValue\":[\"25.9\"]}],\"WindGust\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"13\"],\"dValue\":[\"13.3\"]}],\"WindSpeed\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"8\"],\"dValue\":[\"8.3\"]}],\"Rainfall\":[{\"MeasureUnit\":[\"mm\"],\"Type\":[\"3\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]},{\"MeasureUnit\":[\"mm\"],\"Type\":[\"4\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]},{\"MeasureUnit\":[\"mm\"],\"Type\":[\"5\"],\"Value\":[\"0.0\"],\"dValue\":[\"0.0\"]}],\"WindDirection\":[{\"MeasureUnit\":[\"Â°\"],\"Type\":[\"3\"],\"Value\":[\"WSW\"],\"dValue\":[\"WSW\"],\"Degree\":[\"253\"],\"WindDescription\":[\"è¥¿ååè¥¿\"]}]}]},{\"station\":[{\"$\":{\"code\":\"MN\"},\"stationname\":[\"æ¾³éå¤§æ©å\"],\"RecordTime\":[\"2026-08-16 10:00\"],\"WindGust\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"17\"],\"dValue\":[\"16.6\"]}],\"WindSpeed\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"13\"],\"dValue\":[\"12.6\"]}],\"WindDirection\":[{\"MeasureUnit\":[\"Â°\"],\"Type\":[\"3\"],\"Value\":[\"SW\"],\"dValue\":[\"SW\"],\"Degree\":[\"236\"],\"WindDescription\":[\"è¥¿å\"]}]}]},{\"station\":[{\"$\":{\"code\":\"MS\"},\"stationname\":[\"æ¾³éå¤§æ©å\"],\"RecordTime\":[\"2026-08-16 10:00\"],\"WindGust\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"19\"],\"dValue\":[\"18.7\"]}],\"WindSpeed\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"13\"],\"dValue\":[\"13.0\"]}],\"WindDirection\":[{\"MeasureUnit\":[\"Â°\"],\"Type\":[\"3\"],\"Value\":[\"WSW\"],\"dValue\":[\"WSW\"],\"Degree\":[\"258\"],\"WindDescription\":[\"è¥¿ååè¥¿\"]}]}]},{\"station\":[{\"$\":{\"code\":\"PN\"},\"stationname\":[\"åèª¼å¤§æ©å\"],\"RecordTime\":[\"2026-08-16 10:00\"],\"WindGust\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"17\"],\"dValue\":[\"16.9\"]}],\"WindSpeed\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"8\"],\"dValue\":[\"8.3\"]}],\"WindDirection\":[{\"MeasureUnit\":[\"Â°\"],\"Type\":[\"3\"],\"Value\":[\"WSW\"],\"dValue\":[\"WSW\"],\"Degree\":[\"259\"],\"WindDescription\":[\"è¥¿ååè¥¿\"]}]}]},{\"station\":[{\"$\":{\"code\":\"PS\"},\"stationname\":[\"åèª¼å¤§æ©å\"],\"RecordTime\":[\"2026-08-16 10:00\"],\"WindGust\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"18\"],\"dValue\":[\"17.6\"]}],\"WindSpeed\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"14\"],\"dValue\":[\"14.0\"]}],\"WindDirection\":[{\"MeasureUnit\":[\"Â°\"],\"Type\":[\"3\"],\"Value\":[\"WSW\"],\"dValue\":[\"WSW\"],\"Degree\":[\"251\"],\"WindDescription\":[\"è¥¿ååè¥¿\"]}]}]},{\"station\":[{\"$\":{\"code\":\"PG\"},\"stationname\":[\"åæ¨åºç¸½ç£å¤§æ©\"],\"RecordTime\":[\"2026-08-16 10:00\"],\"WindGust\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"17\"],\"dValue\":[\"16.9\"]}],\"WindSpeed\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"12\"],\"dValue\":[\"12.2\"]}],\"WindDirection\":[{\"MeasureUnit\":[\"Â°\"],\"Type\":[\"3\"],\"Value\":[\"WSW\"],\"dValue\":[\"WSW\"],\"Degree\":[\"245\"],\"WindDescription\":[\"è¥¿ååè¥¿\"]}]}]},{\"station\":[{\"$\":{\"code\":\"PV\"},\"stationname\":[\"è¥¿ç£å¤§æ©\"],\"RecordTime\":[\"2026-08-16 10:00\"],\"WindGust\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"22\"],\"dValue\":[\"21.6\"]}],\"WindSpeed\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"14\"],\"dValue\":[\"14.4\"]}],\"WindDirection\":[{\"MeasureUnit\":[\"Â°\"],\"Type\":[\"3\"],\"Value\":[\"WSW\"],\"dValue\":[\"WSW\"],\"Degree\":[\"250\"],\"WindDescription\":[\"è¥¿ååè¥¿\"]}]}]},{\"station\":[{\"$\":{\"code\":\"PL\"},\"stationname\":[\"è®è±å¤§æ©\"],\"RecordTime\":[\"2026-08-16 10:00\"],\"WindGust\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"19\"],\"dValue\":[\"19.1\"]}],\"WindSpeed\":[{\"MeasureUnit\":[\"km/h\"],\"Type\":[\"3\"],\"Value\":[\"13\"],\"dValue\":[\"12.6\"]}],\"WindDirection\":[{\"MeasureUnit\":[\"Â°\"],\"Type\":[\"3\"],\"Value\":[\"W\"],\"dValue\":[\"W\"],\"Degree\":[\"263\"],\"WindDescription\":[\"è¥¿\"]}]}]}]}]}}","c_forecast":"{\"ActualForecast\":{\"$\":{\"xmlns:xsi\":\"http://www.w3.org/2001/XMLSchema-instance\",\"xsi:noNamespaceSchemaLocation\":\"weatherforecast.xsd\"},\"System\":[{\"SysAuthor\":[\"SMG-InfoGrp\"],\"SysPubdate\":[\"2026-08-16 09:00\"],\"SysLanguage\":[\"0\"]}],\"Custom\":[{\"TodaySituation\":[\"ä¸è¡è¥¿åæ°£æµæ­£å½±é¿æ¬æ¾³å¤©æ°£ã\"],\"WeatherForecast\":[{\"AstronomicalTide\":[\"NIL\"],\"ValidFor\":[\"2026-08-16\"],\"WeatherDescription\":[\"å¤©æ°£é·ç±ã\\r\\nå¤é²ï¼é¨ä»½æéæé½åã\\r\\næä¸å©é£é©é¨ã\\r\\nå¹2è³4ç´è¥¿åé¢¨ã\\r\\næ°£æº«ç´çºææ°27è³32åº¦ï¼å¸ååé«ä¸å©åº¦ã\\r\\nç¸å°æ¿åº¦ä»ä¹ç¾åä¹70è³95ä¹éã\\r\\né æ¸¬æé«ç´«å¤ç·ææ¸ç´çº 11ï¼ç´å¥å±¬æ¼æ¥µé«ã\"]},{\"AstronomicalTide\":[\"NIL\"],\"ValidFor\":[\"2026-08-17\"],\"WeatherDescription\":[\"å¤©æ°£é·ç±ã\\r\\nå¤é²ï¼ç­æ«æéæé½åã\\r\\næå¹¾é£é©é¨ã\\r\\nå¹å¾®é¢¨ã\\r\\næ°£æº«ç´çºææ°26è³32åº¦ï¼å¸ååé«ä¸å©åº¦ã\\r\\nç¸å°æ¿åº¦ä»ä¹ç¾åä¹70è³98ä¹éã\"]}]}]}}","c_foreiqa":"{\"ForecastIQA\":{\"$\":{\"xmlns:xsi\":\"https://www.w3.org/2001/XMLSchema-instance\",\"xsi:noNamespaceSchemaLocation\":\"ForecastIQA.xsd\"},\"System\":[{\"SysPubdate\":[\"2026-08-16 07:00:36\"],\"SysAuthor\":[\"SMG-DINF\"],\"SysLanguage\":[\"0\"]}],\"Custom\":[{\"ReportDescription\":[\"é æ¸¬ä»æ¥ç©ºæ°£è³ªéæ°´å¹³\"],\"AQIForecastReport\":[{\"Station\":[{\"$\":{\"code\":\"BDR\"},\"Stationname\":[\"è·¯é\"],\"AQIForecast\":[{\"ValidFor\":[\"2026-08-16\"],\"Type\":[\"7\"],\"Value\":[\"50-70\"],\"AQIForecastDescription\":[\"è¯å¥½ - æ®é\"],\"Icon\":[{\"IconName\":[\"c_moderate.png\"],\"IconURL\":[\"https://www.smg.gov.mo/icons/iqa/images/c_moderate.png\"]}]}]}]},{\"Station\":[{\"$\":{\"code\":\"ADH\"},\"Stationname\":[\"é«å¯åº¦ä½å®å\"],\"AQIForecast\":[{\"ValidFor\":[\"2026-08-16\"],\"Type\":[\"7\"],\"Value\":[\"30-50\"],\"AQIForecastDescription\":[\"è¯å¥½\"],\"Icon\":[{\"IconName\":[\"c_good.png\"],\"IconURL\":[\"https://www.smg.gov.mo/icons/iqa/images/c_good.png\"]}]}]}]},{\"Station\":[{\"$\":{\"code\":\"AMBIENTAL\"},\"Stationname\":[\"ä¸è¬æ§\"],\"AQIForecast\":[{\"ValidFor\":[\"2026-08-16\"],\"Type\":[\"7\"],\"Value\":[\"40-60\"],\"AQIForecastDescription\":[\"è¯å¥½ - æ®é\"],\"Icon\":[{\"IconName\":[\"c_moderate.png\"],\"IconURL\":[\"https://www.smg.gov.mo/icons/iqa/images/c_moderate.png\"]}]}]}]}],\"Complementary\":[{\"Level\":[\"æ®é\"],\"Icon\":[{\"IconName\":[\"c_moderate.png\"],\"IconURL\":[\"https://www.smg.gov.mo/icons/iqa/images/c_moderate.png\"]}],\"SensitivePopulationGroups\":[\"ææ¸å°æ¶å¤åçæ´»åã\"],\"GeneralPublic\":[\"å¯å¦å¸¸æ´»åã\"]}]}]}}","c_api":"{\"IQA\":{\"$\":{\"xmlns:xsi\":\"http://www.w3.org/2001/XMLSchema-instance\",\"xsi:noNamespaceSchemaLocation\":\"IQA.xsd\"},\"System\":[{\"SysPubdate\":[\"2020-12-31 17:01:47 GMT+8\"],\"SysAuthor\":[\"SMG-DINF\"],\"SysLanguage\":[\"0\"]}],\"Custom\":[{\"AQIReport\":[{\"Station\":[{\"$\":{\"code\":\"BDR\"},\"Stationname\":[\"æ¾³éè·¯éç«\"],\"AQI\":[{\"RecordTime\":[\"2020-12-31\"],\"Type\":[\"6\"],\"Value\":[\"57\"],\"AQIDescription\":[\"æ®é\"],\"Icon\":[{\"IconName\":[\"pc2.gif\"],\"IconURL\":[\"https://xml.smg.gov.mo/icons/iqa/pc2.gif\"]}],\"Element\":[\"NO2\"]}]}]},{\"Station\":[{\"$\":{\"code\":\"ADH\"},\"Stationname\":[\"æ¾³éé«å¯åº¦ä½å®å\"],\"AQI\":[{\"RecordTime\":[\"2020-12-31\"],\"Type\":[\"6\"],\"Value\":[\"43\"],\"AQIDescription\":[\"è¯å¥½\"],\"Icon\":[{\"IconName\":[\"pc1.gif\"],\"IconURL\":[\"https://xml.smg.gov.mo/icons/iqa/pc1.gif\"]}],\"Element\":[\"O3\"]}]}]},{\"Station\":[{\"$\":{\"code\":\"TC\"},\"Stationname\":[\"æ°¹ä»é«å¯åº¦ä½å®å\"],\"AQI\":[{\"RecordTime\":[\"2020-12-31\"],\"Type\":[\"6\"],\"Value\":[\"35\"],\"AQIDescription\":[\"è¯å¥½\"],\"Icon\":[{\"IconName\":[\"pc1.gif\"],\"IconURL\":[\"https://xml.smg.gov.mo/icons/iqa/pc1.gif\"]}],\"Element\":[\"PM10\"]}]}]},{\"Station\":[{\"$\":{\"code\":\"AMBIENTAL\"},\"Stationname\":[\"æ°¹ä»ä¸è¬æ§\"],\"AQI\":[{\"RecordTime\":[\"2020-12-31\"],\"Type\":[\"6\"],\"Value\":[\"60\"],\"AQIDescription\":[\"æ®é\"],\"Icon\":[{\"IconName\":[\"pc2.gif\"],\"IconURL\":[\"https://xml.smg.gov.mo/icons/iqa/pc2.gif\"]}],\"Element\":[\"O3\"]}]}]},{\"Station\":[{\"$\":{\"code\":\"CD\"},\"Stationname\":[\"è·¯ç°ä¸è¬æ§\"],\"AQI\":[{\"RecordTime\":[\"2020-12-31\"],\"Type\":[\"6\"],\"Value\":[\"51\"],\"AQIDescription\":[\"æ®é\"],\"Icon\":[{\"IconName\":[\"pc2.gif\"],\"IconURL\":[\"https://xml.smg.gov.mo/icons/iqa/pc2.gif\"]}],\"Element\":[\"O3\"]}]}]},{\"Station\":[{\"$\":{\"code\":\"KH\"},\"Stationname\":[\"ä¹æ¾³è·¯éç«\"],\"AQI\":[{\"RecordTime\":[\"2020-12-31\"],\"Type\":[\"6\"],\"Value\":[\"64\"],\"AQIDescription\":[\"æ®é\"],\"Icon\":[{\"IconName\":[\"pc2.gif\"],\"IconURL\":[\"https://xml.smg.gov.mo/icons/iqa/pc2.gif\"]}],\"Element\":[\"O3\"]}]}]}]}]}}","c_coastal_forecast":"{\"CoastalForecast\":{\"$\":{\"xmlns:xsi\":\"http://www.w3.org/2001/XMLSchema-instance\",\"xsi:noNamespaceSchemaLocation\":\"coastalforecast.xsd\"},\"System\":[{\"SysAuthor\":[\"SMG-InfoGrp\"],\"SysPubdate\":[\"2026-08-16 09:00:22\"],\"SysLanguage\":[\"0\"]}],\"Custom\":[{\"CoastalForecastReport\":[{\"ValidFor\":[\"2026-08-16\"],\"Area\":[\"æ¾³éæµ·ä¸\"],\"SituationDescription\":[\"ä¸è¡è¥¿åæ°£æµæ­£å½±é¿æ¾³éæµ·ä¸å¤©æ°£ã\"],\"WeatherDescription\":[\"æå¹¾é£é©é¨ã\\r\\nè¦éå¹³å¸¸è³è¯å¥½ã\\r\\nå¹ 2 è³ 4 ç´ è¥¿åé¢¨ã\\r\\næµªé« 0.2 è³ 1.0 å¬å°ºï¼æµªååè³è¥¿åã\\r\\næµ·æ°´æº«åº¦ç´çºææ° 32 åº¦ã\"],\"TTS\":[\"ä¸è¡è¥¿åæ°£æµæ­£å½±é¿æ¾³éæµ·ä¸å¤©æ°£ãæå¹¾é£é©é¨ã\\r\\nè¦éå¹³å¸¸è³è¯å¥½ã\\r\\nå¹ 2 è³ 4 ç´ è¥¿åé¢¨ã\\r\\næµªé« 0.2 è³ 1.0 å¬å°ºï¼æµªååè³è¥¿åã\\r\\næµ·æ°´æº«åº¦ç´çºææ° 32 åº¦ã\"]}]}]}}","c_contact":"{\"Contact\":{\"$\":{\"xmlns:xsi\":\"http://www.w3.org/2001/XMLSchema-instance\",\"xsi:noNamespaceSchemaLocation\":\"contact.xsd\"},\"System\":[{\"SysAuthor\":[\"SMG-DINF.\"],\"SysPubdate\":[\"7789-05-04 10:30\"],\"SysLanguage\":[\"0\"]}],\"custom\":[{\"WebPageContent\":[{\"$\":{\"id\":\"è¯çµ¡æ°£è±¡å±\"},\"EMail\":[\"meteo@smg.gov.mo\"],\"Address\":[\"æ¾³éæ°¹ä»å¤§æ½­å±±å¤©æå°æè·¯å°çç©çæ¨æ°£è±¡å±\"],\"Postbox\":[\"æ¾³ééµæ¿ä¿¡ç®±93è\"],\"Telephone\":[\"(853)88986223 \"],\"Fax\":[\"(853)28850557\"]}]}]}}","c_ftgms":"{\"FTGMS\":{\"$\":{\"xmlns:xsi\":\"http://www.w3.org/2001/XMLSchema-instance\",\"xsi:noNamespaceSchemaLocation\":\"ftgms.xsd\"},\"System\":[{\"SysAuthor\":[\"SMG-DI.\"],\"SysPubdate\":[\"2026-08-16 10:05\"],\"SysLanguage\":[\"0\"]}],\"Custom\":[{\"WLReport\":[{\"station\":[{\"$\":{\"categoryID\":\"1\",\"code\":\"LSI\"},\"stationname\":[\"å§æ¸¯å\"],\"RecordTime\":[\"2026-08-16 10:03\"],\"Quality\":[\"0\"],\"Waterlevel\":[{\"MeasureUnit\":[\"m\"],\"Type\":[\"XXXX\"],\"Value\":[\"0.00\"]}],\"Remark\":[\"\"]}]},{\"station\":[{\"$\":{\"categoryID\":\"1\",\"code\":\"LPI\"},\"stationname\":[\"å§æ¸¯\"],\"RecordTime\":[\"2026-08-16 10:03\"],\"Quality\":[\"0\"],\"Waterlevel\":[{\"MeasureUnit\":[\"m\"],\"Type\":[\"XXXX\"],\"Value\":[\"0.00\"]}],\"Remark\":[\"\"]}]},{\"station\":[{\"$\":{\"categoryID\":\"1\",\"code\":\"LHK\"},\"stationname\":[\"åº·å¬å»\"],\"RecordTime\":[\"2026-08-16 10:03\"],\"Quality\":[\"0\"],\"Waterlevel\":[{\"MeasureUnit\":[\"m\"],\"Type\":[\"XXXX\"],\"Value\":[\"0.00\"]}],\"Remark\":[\"\"]}]},{\"station\":[{\"$\":{\"categoryID\":\"1\",\"code\":\"LPH\"},\"stationname\":[\"å¸æå£\"],\"RecordTime\":[\"2026-08-16 10:03\"],\"Quality\":[\"0\"],\"Waterlevel\":[{\"MeasureUnit\":[\"m\"],\"Type\":[\"XXXX\"],\"Value\":[\"0.00\"]}],\"Remark\":[\"\"]}]},{\"station\":[{\"$\":{\"categoryID\":\"1\",\"code\":\"LPF\"},\"stationname\":[\"å§æ¸¯å\"],\"RecordTime\":[\"2026-08-16 10:03\"],\"Quality\":[\"0\"],\"Waterlevel\":[{\"MeasureUnit\":[\"m\"],\"Type\":[\"XXXX\"],\"Value\":[\"0.00\"]}],\"Remark\":[\"\"]}]},{\"station\":[{\"$\":{\"categoryID\":\"1\",\"code\":\"LPM\"},\"stationname\":[\"ä¸ç°è¡\"],\"RecordTime\":[\"2026-08-16 10:03\"],\"Quality\":[\"0\"],\"Waterlevel\":[{\"MeasureUnit\":[\"m\"],\"Type\":[\"XXXX\"],\"Value\":[\"0.00\"]}],\"Remark\":[\"\"]}]},{\"station\":[{\"$\":{\"categoryID\":\"2\",\"code\":\"LIV\"},\"stationname\":[\"éæ´²æ²³éé¦¬è·¯\"],\"RecordTime\":[\"2026-08-16 10:03\"],\"Quality\":[\"0\"],\"Waterlevel\":[{\"MeasureUnit\":[\"m\"],\"Type\":[\"XXXX\"],\"Value\":[\"0.00\"]}],\"Remark\":[\"\"]}]},{\"station\":[{\"$\":{\"categoryID\":\"2\",\"code\":\"LMF\"},\"stationname\":[\"è±å°çªææè¡\"],\"RecordTime\":[\"2026-08-16 10:03\"],\"Quality\":[\"0\"],\"Waterlevel\":[{\"MeasureUnit\":[\"m\"],\"Type\":[\"XXXX\"],\"Value\":[\"0.00\"]}],\"Remark\":[\"\"]}]},{\"station\":[{\"$\":{\"categoryID\":\"2\",\"code\":\"LMM\"},\"stationname\":[\"ç´è¡å¸\"],\"RecordTime\":[\"2026-08-16 10:03\"],\"Quality\":[\"0\"],\"Waterlevel\":[{\"MeasureUnit\":[\"m\"],\"Type\":[\"XXXX\"],\"Value\":[\"0.00\"]}],\"Remark\":[\"\"]}]},{\"station\":[{\"$\":{\"categoryID\":\"2\",\"code\":\"LRR\"},\"stationname\":[\"åå¾©è¡\"],\"RecordTime\":[\"2026-08-16 10:03\"],\"Quality\":[\"0\"],\"Waterlevel\":[{\"MeasureUnit\":[\"m\"],\"Type\":[\"XXXX\"],\"Value\":[\"0.00\"]}],\"Remark\":[\"\"]}]},{\"station\":[{\"$\":{\"categoryID\":\"2\",\"code\":\"LTA\"},\"stationname\":[\"æ°¸æ¨æ²é¢\"],\"RecordTime\":[\"2026-08-16 10:03\"],\"Quality\":[\"0\"],\"Waterlevel\":[{\"MeasureUnit\":[\"m\"],\"Type\":[\"XXXX\"],\"Value\":[\"0.00\"]}],\"Remark\":[\"\"]}]},{\"station\":[{\"$\":{\"categoryID\":\"3\",\"code\":\"LHO\"},\"stationname\":[\"èåè·¯\"],\"RecordTime\":[\"2026-08-16 10:03\"],\"Quality\":[\"0\"],\"Waterlevel\":[{\"MeasureUnit\":[\"m\"],\"Type\":[\"XXXX\"],\"Value\":[\"0.00\"]}],\"Remark\":[\"\"]}]},{\"station\":[{\"$\":{\"categoryID\":\"3\",\"code\":\"LCH\"},\"stationname\":[\"æ²ç¶­æ¯è¡\"],\"RecordTime\":[\"2026-08-16 10:03\"],\"Quality\":[\"0\"],\"Waterlevel\":[{\"MeasureUnit\":[\"m\"],\"Type\":[\"XXXX\"],\"Value\":[\"0.00\"]}],\"Remark\":[\"\"]}]},{\"station\":[{\"$\":{\"categoryID\":\"3\",\"code\":\"LAO\"},\"stationname\":[\"æ¯ç¶­ç´é¦¬è·¯\"],\"RecordTime\":[\"2026-08-16 10:03\"],\"Quality\":[\"0\"],\"Waterlevel\":[{\"MeasureUnit\":[\"m\"],\"Type\":[\"XXXX\"],\"Value\":[\"0.00\"]}],\"Remark\":[\"\"]}]},{\"station\":[{\"$\":{\"categoryID\":\"3\",\"code\":\"LIL\"},\"stationname\":[\"çé\"],\"RecordTime\":[\"2026-08-16 10:03\"],\"Quality\":[\"0\"],\"Waterlevel\":[{\"MeasureUnit\":[\"m\"],\"Type\":[\"XXXX\"],\"Value\":[\"0.00\"]}],\"Remark\":[\"\"]}]},{\"station\":[{\"$\":{\"categoryID\":\"3\",\"code\":\"LCS\"},\"stationname\":[\"æ¾æ¨¹å°¾\"],\"RecordTime\":[\"2026-08-16 10:03\"],\"Quality\":[\"0\"],\"Waterlevel\":[{\"MeasureUnit\":[\"m\"],\"Type\":[\"XXXX\"],\"Value\":[\"0.00\"]}],\"Remark\":[\"\"]}]},{\"station\":[{\"$\":{\"categoryID\":\"3\",\"code\":\"LPN\"},\"stationname\":[\"é»æ©è¡\"],\"RecordTime\":[\"2026-08-16 10:03\"],\"Quality\":[\"0\"],\"Waterlevel\":[{\"MeasureUnit\":[\"m\"],\"Type\":[\"XXXX\"],\"Value\":[\"0.00\"]}],\"Remark\":[\"\"]}]},{\"station\":[{\"$\":{\"categoryID\":\"3\",\"code\":\"LSP\"},\"stationname\":[\"ç³æç£\"],\"RecordTime\":[\"2026-08-16 10:03\"],\"Quality\":[\"0\"],\"Waterlevel\":[{\"MeasureUnit\":[\"m\"],\"Type\":[\"XXXX\"],\"Value\":[\"0.00\"]}],\"Remark\":[\"\"]}]},{\"station\":[{\"$\":{\"categoryID\":\"3\",\"code\":\"LCL\"},\"stationname\":[\"èæ¹æ¿åå \"],\"RecordTime\":[\"2026-08-16 10:03\"],\"Quality\":[\"0\"],\"Waterlevel\":[{\"MeasureUnit\":[\"m\"],\"Type\":[\"XXXX\"],\"Value\":[\"0.00\"]}],\"Remark\":[\"\"]}]}],\"comments\":[{\"comment\":[\"ã---ãè³ææ«ææªè½æä¾ï¼è¡¨ç¤ºè©²ç«æ­£å¨ç¶­ä¿®æé»åä¾æåºç¾åé¡\"]}],\"categories\":[{\"category\":[{\"_\":\"æ¾³éå§æ¸¯å\",\"$\":{\"id\":\"1\"}},{\"_\":\"æ¾³éåå³¶ä½çªªå°å\",\"$\":{\"id\":\"2\"}},{\"_\":\"è·¯æ°¹ä½çªªå°å\",\"$\":{\"id\":\"3\"}}]}]}]}}"},
+  hoApi: {"IQA":{"$":{"xmlns:xsi":"http://www.w3.org/2001/XMLSchema-instance"},"System":[{"SysPubdate":["2026-08-16 10:30"],"SysAuthor":["DSMG-DDI."],"version":["1.01"]}],"Custom":[{"ReportTime":[{"Year":["2026"],"Month":["08"],"Day":["16"],"Hour":["10"]}],"AQIReport":[{"Station":[{"$":{"code":"PO"},"type":[{"Short":["PO"],"Chinese":["è·¯é"],"Portuguese":["Berma da Estrada"],"English":["Roadside"]}],"Stationname":[{"Chinese":["è·è­å"],"Portuguese":["Conselheiro Ferreira de Almeida"],"English":["Conselheiro Ferreira de Almeida"]}],"RealTimeIndex":[{"Value":["25"],"AQIDescription":[{"Chinese":["è¯å¥½"],"Portuguese":["Bom"],"English":["Good"]}],"Icon":[{"IconName":["c_good.png"],"IconURL":["https://www.smg.gov.mo/icons/iqa/images/c_good.png"],"lang_IconURL":[{"Chinese":["https://www.smg.gov.mo/icons/iqa/images/c_good.png"],"Portuguese":["https://www.smg.gov.mo/icons/iqa/images/p_good.png"],"English":["https://www.smg.gov.mo/icons/iqa/images/e_good.png"]}]}],"Pollutant":["-"]}],"Element":[{"NO2":[{"Concentration":[{"_":"---","$":{"unit":"Âµg/m3"}}],"AQI":["---"]}],"SO2":[{"Concentration":[{"_":"2.98","$":{"unit":"Âµg/mÂ³"}}],"AQI":["8"]}],"O3":[{"Concentration":[{"_":"39.60","$":{"unit":"Âµg/mÂ³"}}],"AQI":["25"]}],"CO":[{"Concentration":[{"_":"0.68","$":{"unit":"mg/mÂ³"}}],"AQI":["7"]}],"PM25":[{"Concentration":[{"_":"11.33","$":{"unit":"Âµg/mÂ³"}}],"AQI":["23"]}],"PM10":[{"Concentration":[{"_":"21.12","$":{"unit":"Âµg/mÂ³"}}],"AQI":["22"]}]}]}]},{"Station":[{"$":{"code":"KH"},"type":[{"Short":["KH"],"Chinese":["è·¯é"],"Portuguese":["Berma da Estrada"],"English":["Roadside"]}],"Stationname":[{"Chinese":["ä¹æ¾³"],"Portuguese":["Ka-HÃ³"],"English":["Ka-HÃ³"]}],"RealTimeIndex":[{"Value":["34"],"AQIDescription":[{"Chinese":["è¯å¥½"],"Portuguese":["Bom"],"English":["Good"]}],"Icon":[{"IconName":["c_good.png"],"IconURL":["https://www.smg.gov.mo/icons/iqa/images/c_good.png"],"lang_IconURL":[{"Chinese":["https://www.smg.gov.mo/icons/iqa/images/c_good.png"],"Portuguese":["https://www.smg.gov.mo/icons/iqa/images/p_good.png"],"English":["https://www.smg.gov.mo/icons/iqa/images/e_good.png"]}]}],"Pollutant":["-"]}],"Element":[{"NO2":[{"Concentration":[{"_":"30.10","$":{"unit":"Âµg/m3"}}],"AQI":["16"]}],"SO2":[{"Concentration":[{"_":"4.33","$":{"unit":"Âµg/mÂ³"}}],"AQI":["11"]}],"O3":[{"Concentration":[{"_":"53.32","$":{"unit":"Âµg/mÂ³"}}],"AQI":["34"]}],"CO":[{"Concentration":[{"_":"0.71","$":{"unit":"mg/mÂ³"}}],"AQI":["8"]}],"PM25":[{"Concentration":[{"_":"7.38","$":{"unit":"Âµg/mÂ³"}}],"AQI":["15"]}],"PM10":[{"Concentration":[{"_":"17.25","$":{"unit":"Âµg/mÂ³"}}],"AQI":["18"]}]}]}]},{"Station":[{"$":{"code":"EN"},"type":[{"Short":["EN"],"Chinese":["é«å¯åº¦ä½å®å"],"Portuguese":["Alta Densidade Habitacional"],"English":["High Density Residental Area"]}],"Stationname":[{"Chinese":["å°å±±"],"Portuguese":["Bairro de Tamagnini Barbosa"],"English":["Bairro de Tamagnini Barbosa"]}],"RealTimeIndex":[{"Value":["39"],"AQIDescription":[{"Chinese":["è¯å¥½"],"Portuguese":["Bom"],"English":["Good"]}],"Icon":[{"IconName":["c_good.png"],"IconURL":["https://www.smg.gov.mo/icons/iqa/images/c_good.png"],"lang_IconURL":[{"Chinese":["https://www.smg.gov.mo/icons/iqa/images/c_good.png"],"Portuguese":["https://www.smg.gov.mo/icons/iqa/images/p_good.png"],"English":["https://www.smg.gov.mo/icons/iqa/images/e_good.png"]}]}],"Pollutant":["-"]}],"Element":[{"NO2":[{"Concentration":[{"_":"12.31","$":{"unit":"Âµg/m3"}}],"AQI":["7"]}],"SO2":[{"Concentration":[{"_":"1.16","$":{"unit":"Âµg/mÂ³"}}],"AQI":["3"]}],"O3":[{"Concentration":[{"_":"61.98","$":{"unit":"Âµg/mÂ³"}}],"AQI":["39"]}],"CO":[{"Concentration":[{"_":"0.58","$":{"unit":"mg/mÂ³"}}],"AQI":["6"]}],"PM25":[{"Concentration":[{"_":"10.21","$":{"unit":"Âµg/mÂ³"}}],"AQI":["21"]}],"PM10":[{"Concentration":[{"_":"22.04","$":{"unit":"Âµg/mÂ³"}}],"AQI":["23"]}]}]}]},{"Station":[{"$":{"code":"TC"},"type":[{"Short":["TC"],"Chinese":["é«å¯åº¦ä½å®å"],"Portuguese":["Alta Densidade Habitacional"],"English":["High Density Residental Area"]}],"Stationname":[{"Chinese":["æ°¹ä»ä¸­å¿å"],"Portuguese":["Baixa da Taipa"],"English":["Baixa da Taipa"]}],"RealTimeIndex":[{"Value":["41"],"AQIDescription":[{"Chinese":["è¯å¥½"],"Portuguese":["Bom"],"English":["Good"]}],"Icon":[{"IconName":["c_good.png"],"IconURL":["https://www.smg.gov.mo/icons/iqa/images/c_good.png"],"lang_IconURL":[{"Chinese":["https://www.smg.gov.mo/icons/iqa/images/c_good.png"],"Portuguese":["https://www.smg.gov.mo/icons/iqa/images/p_good.png"],"English":["https://www.smg.gov.mo/icons/iqa/images/e_good.png"]}]}],"Pollutant":["-"]}],"Element":[{"NO2":[{"Concentration":[{"_":"12.12","$":{"unit":"Âµg/m3"}}],"AQI":["7"]}],"SO2":[{"Concentration":[{"_":"0.35","$":{"unit":"Âµg/mÂ³"}}],"AQI":["1"]}],"O3":[{"Concentration":[{"_":"64.24","$":{"unit":"Âµg/mÂ³"}}],"AQI":["41"]}],"CO":[{"Concentration":[{"_":"0.44","$":{"unit":"mg/mÂ³"}}],"AQI":["5"]}],"PM25":[{"Concentration":[{"_":"10.62","$":{"unit":"Âµg/mÂ³"}}],"AQI":["22"]}],"PM10":[{"Concentration":[{"_":"22.29","$":{"unit":"Âµg/mÂ³"}}],"AQI":["23"]}]}]}]},{"Station":[{"$":{"code":"TG"},"type":[{"Short":["TG"],"Chinese":["ä¸è¬æ§"],"Portuguese":["Ambiental"],"English":["Ambient"]}],"Stationname":[{"Chinese":["å¤§æ½­å±±"],"Portuguese":["Taipa Grande"],"English":["Taipa Grande"]}],"RealTimeIndex":[{"Value":["47"],"AQIDescription":[{"Chinese":["è¯å¥½"],"Portuguese":["Bom"],"English":["Good"]}],"Icon":[{"IconName":["c_good.png"],"IconURL":["https://www.smg.gov.mo/icons/iqa/images/c_good.png"],"lang_IconURL":[{"Chinese":["https://www.smg.gov.mo/icons/iqa/images/c_good.png"],"Portuguese":["https://www.smg.gov.mo/icons/iqa/images/p_good.png"],"English":["https://www.smg.gov.mo/icons/iqa/images/e_good.png"]}]}],"Pollutant":["-"]}],"Element":[{"NO2":[{"Concentration":[{"_":"5.81","$":{"unit":"Âµg/m3"}}],"AQI":["3"]}],"SO2":[{"Concentration":[{"_":"---","$":{"unit":"Âµg/mÂ³"}}],"AQI":["---"]}],"O3":[{"Concentration":[{"_":"75.01","$":{"unit":"Âµg/mÂ³"}}],"AQI":["47"]}],"CO":[{"Concentration":[{"_":"0.65","$":{"unit":"mg/mÂ³"}}],"AQI":["7"]}],"PM25":[{"Concentration":[{"_":"10.08","$":{"unit":"Âµg/mÂ³"}}],"AQI":["21"]}],"PM10":[{"Concentration":[{"_":"16.38","$":{"unit":"Âµg/mÂ³"}}],"AQI":["17"]}]}]}]},{"Station":[{"$":{"code":"CD"},"type":[{"Short":["CD"],"Chinese":["ä¸è¬æ§"],"Portuguese":["Ambiental"],"English":["Ambient"]}],"Stationname":[{"Chinese":["ç³æç£"],"Portuguese":["Seac Pai Van"],"English":["Seac Pai Van"]}],"RealTimeIndex":[{"Value":["41"],"AQIDescription":[{"Chinese":["è¯å¥½"],"Portuguese":["Bom"],"English":["Good"]}],"Icon":[{"IconName":["c_good.png"],"IconURL":["https://www.smg.gov.mo/icons/iqa/images/c_good.png"],"lang_IconURL":[{"Chinese":["https://www.smg.gov.mo/icons/iqa/images/c_good.png"],"Portuguese":["https://www.smg.gov.mo/icons/iqa/images/p_good.png"],"English":["https://www.smg.gov.mo/icons/iqa/images/e_good.png"]}]}],"Pollutant":["-"]}],"Element":[{"NO2":[{"Concentration":[{"_":"8.45","$":{"unit":"Âµg/m3"}}],"AQI":["5"]}],"SO2":[{"Concentration":[{"_":"1.97","$":{"unit":"Âµg/mÂ³"}}],"AQI":["5"]}],"O3":[{"Concentration":[{"_":"65.35","$":{"unit":"Âµg/mÂ³"}}],"AQI":["41"]}],"CO":[{"Concentration":[{"_":"0.84","$":{"unit":"mg/mÂ³"}}],"AQI":["9"]}],"PM25":[{"Concentration":[{"_":"8.50","$":{"unit":"Âµg/mÂ³"}}],"AQI":["17"]}],"PM10":[{"Concentration":[{"_":"17.25","$":{"unit":"Âµg/mÂ³"}}],"AQI":["18"]}]}]}]}]}]}},
+  foreIqa: {"ForecastIQA":{"$":{"xmlns:xsi":"https://www.w3.org/2001/XMLSchema-instance","xsi:noNamespaceSchemaLocation":"ForecastIQA.xsd"},"System":[{"SysPubdate":["2026-08-16 07:00:36"],"SysAuthor":["SMG-DINF"],"SysLanguage":["0"]}],"Custom":[{"ReportDescription":["é æ¸¬ä»æ¥ç©ºæ°£è³ªéæ°´å¹³"],"AQIForecastReport":[{"Station":[{"$":{"code":"BDR"},"Stationname":["è·¯é"],"AQIForecast":[{"ValidFor":["2026-08-16"],"Type":["7"],"Value":["50-70"],"AQIForecastDescription":["è¯å¥½ - æ®é"],"Icon":[{"IconName":["c_moderate.png"],"IconURL":["https://www.smg.gov.mo/icons/iqa/images/c_moderate.png"]}]}]}]},{"Station":[{"$":{"code":"ADH"},"Stationname":["é«å¯åº¦ä½å®å"],"AQIForecast":[{"ValidFor":["2026-08-16"],"Type":["7"],"Value":["30-50"],"AQIForecastDescription":["è¯å¥½"],"Icon":[{"IconName":["c_good.png"],"IconURL":["https://www.smg.gov.mo/icons/iqa/images/c_good.png"]}]}]}]},{"Station":[{"$":{"code":"AMBIENTAL"},"Stationname":["ä¸è¬æ§"],"AQIForecast":[{"ValidFor":["2026-08-16"],"Type":["7"],"Value":["40-60"],"AQIForecastDescription":["è¯å¥½ - æ®é"],"Icon":[{"IconName":["c_moderate.png"],"IconURL":["https://www.smg.gov.mo/icons/iqa/images/c_moderate.png"]}]}]}]}],"Complementary":[{"Level":["æ®é"],"Icon":[{"IconName":["c_moderate.png"],"IconURL":["https://www.smg.gov.mo/icons/iqa/images/c_moderate.png"]}],"SensitivePopulationGroups":["ææ¸å°æ¶å¤åçæ´»åã"],"GeneralPublic":["å¯å¦å¸¸æ´»åã"]}]}]}}
+};
+const MONTHLY = [{"avg_temp":16.2,"avg_daily_max":20.5,"avg_daily_min":13.4,"month_max":25.1,"month_max_date":"2025-01-15","month_min":6.8,"month_min_date":"2025-01-27","total_rain_mm":4.0,"rain_days":4.0,"ytd_rain_mm":4.0,"max_daily_rain":15.4,"max_daily_rain_date":"2025-01-23","avg_wind_kmh":11.9,"prevailing_wind":"NNE","avg_humidity_pct":62.0,"evaporation_mm":103.5,"sunshine_h":258.9,"hot_days":0.0,"cold_days":11.0,"tropical_nights":0.0,"year":2025,"month":1,"ym":"202501"},{"avg_temp":16.4,"avg_daily_max":20.2,"avg_daily_min":14.3,"month_max":25.6,"month_max_date":"2025-02-16","month_min":8.0,"month_min_date":"2025-02-09","total_rain_mm":9.8,"rain_days":9.0,"ytd_rain_mm":13.8,"max_daily_rain":18.3,"max_daily_rain_date":"2025-02-12","avg_wind_kmh":11.5,"prevailing_wind":"N","avg_humidity_pct":78.0,"evaporation_mm":59.0,"sunshine_h":162.8,"hot_days":0.0,"cold_days":7.0,"tropical_nights":0.0,"year":2025,"month":2,"ym":"202502"},{"avg_temp":18.7,"avg_daily_max":22.6,"avg_daily_min":16.1,"month_max":27.1,"month_max_date":"2025-03-28","month_min":10.4,"month_min_date":"2025-03-07,31","total_rain_mm":45.8,"rain_days":10.0,"ytd_rain_mm":59.6,"max_daily_rain":33.8,"max_daily_rain_date":"2025-03-15","avg_wind_kmh":11.0,"prevailing_wind":"N","avg_humidity_pct":81.0,"evaporation_mm":65.4,"sunshine_h":194.9,"hot_days":0.0,"cold_days":6.0,"tropical_nights":0.0,"year":2025,"month":3,"ym":"202503"},{"avg_temp":22.5,"avg_daily_max":25.7,"avg_daily_min":20.2,"month_max":30.3,"month_max_date":"2025-04-15","month_min":15.0,"month_min_date":"2025-04-01","total_rain_mm":51.4,"rain_days":7.0,"ytd_rain_mm":111.0,"max_daily_rain":56.3,"max_daily_rain_date":"2025-04-25","avg_wind_kmh":10.2,"prevailing_wind":"S","avg_humidity_pct":80.0,"evaporation_mm":63.7,"sunshine_h":213.9,"hot_days":1.0,"cold_days":1.0,"tropical_nights":0.0,"year":2025,"month":4,"ym":"202504"},{"avg_temp":25.8,"avg_daily_max":28.9,"avg_daily_min":24.1,"month_max":32.4,"month_max_date":"2025-05-22","month_min":19.9,"month_min_date":"2025-05-11","total_rain_mm":189.8,"rain_days":17.0,"ytd_rain_mm":300.8,"max_daily_rain":97.2,"max_daily_rain_date":"2025-05-29","avg_wind_kmh":10.4,"prevailing_wind":"S","avg_humidity_pct":85.0,"evaporation_mm":58.1,"sunshine_h":211.4,"hot_days":0.0,"cold_days":0.0,"tropical_nights":0.0,"year":2025,"month":5,"ym":"202505"},{"avg_temp":27.8,"avg_daily_max":30.5,"avg_daily_min":25.9,"month_max":33.8,"month_max_date":"2025-06-10","month_min":22.8,"month_min_date":"2025-06-05","total_rain_mm":195.2,"rain_days":19.0,"ytd_rain_mm":496.0,"max_daily_rain":104.5,"max_daily_rain_date":"2025-06-17","avg_wind_kmh":11.0,"prevailing_wind":"SSE","avg_humidity_pct":85.0,"evaporation_mm":58.5,"sunshine_h":267.5,"hot_days":2.0,"cold_days":0.0,"tropical_nights":1.0,"year":2025,"month":6,"ym":"202506"},{"avg_temp":28.7,"avg_daily_max":32.3,"avg_daily_min":26.2,"month_max":35.2,"month_max_date":"2025-07-05","month_min":23.6,"month_min_date":"2025-07-18","total_rain_mm":385.0,"rain_days":17.0,"ytd_rain_mm":881.0,"max_daily_rain":86.7,"max_daily_rain_date":"2025-07-18","avg_wind_kmh":9.5,"prevailing_wind":"SW","avg_humidity_pct":84.0,"evaporation_mm":66.8,"sunshine_h":243.9,"hot_days":18.0,"cold_days":0.0,"tropical_nights":6.0,"year":2025,"month":7,"ym":"202507"},{"avg_temp":28.0,"avg_daily_max":30.6,"avg_daily_min":25.9,"month_max":35.0,"month_max_date":"2025-08-23","month_min":23.5,"month_min_date":"2025-08-14","total_rain_mm":605.8,"rain_days":20.0,"ytd_rain_mm":1486.8,"max_daily_rain":89.3,"max_daily_rain_date":"2025-08-14","avg_wind_kmh":10.7,"prevailing_wind":"E","avg_humidity_pct":86.0,"evaporation_mm":59.2,"sunshine_h":227.4,"hot_days":4.0,"cold_days":0.0,"tropical_nights":3.0,"year":2025,"month":8,"ym":"202508"},{"avg_temp":28.2,"avg_daily_max":31.2,"avg_daily_min":26.0,"month_max":34.4,"month_max_date":"2025-09-18","month_min":22.4,"month_min_date":"2025-09-24","total_rain_mm":310.8,"rain_days":13.0,"ytd_rain_mm":1797.6,"max_daily_rain":80.2,"max_daily_rain_date":"2025-09-24","avg_wind_kmh":12.2,"prevailing_wind":"E","avg_humidity_pct":82.0,"evaporation_mm":64.7,"sunshine_h":271.6,"hot_days":8.0,"cold_days":0.0,"tropical_nights":1.0,"year":2025,"month":9,"ym":"202509"},{"avg_temp":25.9,"avg_daily_max":29.1,"avg_daily_min":23.7,"month_max":32.0,"month_max_date":"2025-10-07","month_min":18.7,"month_min_date":"2025-10-22","total_rain_mm":75.6,"rain_days":11.0,"ytd_rain_mm":1873.2,"max_daily_rain":42.5,"max_daily_rain_date":"2025-10-05","avg_wind_kmh":13.9,"prevailing_wind":"NNE","avg_humidity_pct":78.0,"evaporation_mm":80.0,"sunshine_h":204.0,"hot_days":4.0,"cold_days":0.0,"tropical_nights":0.0,"year":2025,"month":10,"ym":"202510"},{"avg_temp":20.9,"avg_daily_max":24.6,"avg_daily_min":18.4,"month_max":29.4,"month_max_date":"2025-11-09","month_min":13.1,"month_min_date":"2025-11-19","total_rain_mm":7.0,"rain_days":5.0,"ytd_rain_mm":1880.2,"max_daily_rain":24.5,"max_daily_rain_date":"2025-11-07","avg_wind_kmh":15.1,"prevailing_wind":"N","avg_humidity_pct":67.0,"evaporation_mm":113.0,"sunshine_h":153.0,"hot_days":0.0,"cold_days":1.0,"tropical_nights":0.0,"year":2025,"month":11,"ym":"202511"},{"avg_temp":19.1,"avg_daily_max":22.9,"avg_daily_min":16.6,"month_max":26.3,"month_max_date":"2025-12-20","month_min":8.1,"month_min_date":"2025-12-27","total_rain_mm":10.8,"rain_days":7.0,"ytd_rain_mm":1891.0,"max_daily_rain":13.3,"max_daily_rain_date":"2025-12-01","avg_wind_kmh":10.9,"prevailing_wind":"N","avg_humidity_pct":75.0,"evaporation_mm":74.1,"sunshine_h":164.5,"hot_days":0.0,"cold_days":1.0,"tropical_nights":0.0,"year":2025,"month":12,"ym":"202512"},{"avg_temp":16.4,"avg_daily_max":20.5,"avg_daily_min":13.5,"month_max":25.1,"month_max_date":"2026-01-17","month_min":6.8,"month_min_date":"2026-01-07","total_rain_mm":4.6,"rain_days":2.0,"ytd_rain_mm":4.6,"max_daily_rain":15.4,"max_daily_rain_date":"2026-01-30","avg_wind_kmh":12.3,"prevailing_wind":"N","avg_humidity_pct":67.0,"evaporation_mm":92.7,"sunshine_h":215.2,"hot_days":0.0,"cold_days":11.0,"tropical_nights":0.0,"year":2026,"month":1,"ym":"202601"},{"avg_temp":19.3,"avg_daily_max":23.0,"avg_daily_min":17.1,"month_max":25.6,"month_max_date":"2026-02-16","month_min":8.0,"month_min_date":"2026-02-01","total_rain_mm":38.6,"rain_days":4.0,"ytd_rain_mm":43.2,"max_daily_rain":18.3,"max_daily_rain_date":"2026-02-28","avg_wind_kmh":9.4,"prevailing_wind":"E","avg_humidity_pct":79.0,"evaporation_mm":60.1,"sunshine_h":127.5,"hot_days":0.0,"cold_days":1.0,"tropical_nights":0.0,"year":2026,"month":2,"ym":"202602"},{"avg_temp":20.7,"avg_daily_max":23.7,"avg_daily_min":18.6,"month_max":27.1,"month_max_date":"2026-03-25","month_min":10.4,"month_min_date":"2026-03-04","total_rain_mm":119.4,"rain_days":9.0,"ytd_rain_mm":162.6,"max_daily_rain":33.8,"max_daily_rain_date":"2026-03-02","avg_wind_kmh":10.4,"prevailing_wind":"E","avg_humidity_pct":84.0,"evaporation_mm":55.0,"sunshine_h":159.2,"hot_days":0.0,"cold_days":0.0,"tropical_nights":0.0,"year":2026,"month":3,"ym":"202603"},{"avg_temp":24.3,"avg_daily_max":26.9,"avg_daily_min":22.5,"month_max":30.3,"month_max_date":"2026-04-19","month_min":15.0,"month_min_date":"2026-04-24","total_rain_mm":136.8,"rain_days":10.0,"ytd_rain_mm":299.4,"max_daily_rain":56.3,"max_daily_rain_date":"2026-04-29","avg_wind_kmh":10.8,"prevailing_wind":"SSE","avg_humidity_pct":88.0,"evaporation_mm":51.6,"sunshine_h":80.1,"hot_days":0.0,"cold_days":0.0,"tropical_nights":0.0,"year":2026,"month":4,"ym":"202604"},{"avg_temp":25.8,"avg_daily_max":28.4,"avg_daily_min":24.1,"month_max":32.4,"month_max_date":"2026-05-29","month_min":19.9,"month_min_date":"2026-05-05","total_rain_mm":350.8,"rain_days":15.0,"ytd_rain_mm":650.2,"max_daily_rain":97.2,"max_daily_rain_date":"2026-05-05","avg_wind_kmh":10.8,"prevailing_wind":"S","avg_humidity_pct":89.0,"evaporation_mm":49.6,"sunshine_h":98.8,"hot_days":3.0,"cold_days":0.0,"tropical_nights":2.0,"year":2026,"month":5,"ym":"202605"},{"avg_temp":27.7,"avg_daily_max":30.2,"avg_daily_min":25.9,"month_max":33.8,"month_max_date":"2026-06-05","month_min":22.8,"month_min_date":"2026-06-09,17","total_rain_mm":369.0,"rain_days":18.0,"ytd_rain_mm":1019.2,"max_daily_rain":104.5,"max_daily_rain_date":"2026-06-13","avg_wind_kmh":9.2,"prevailing_wind":"S","avg_humidity_pct":87.0,"evaporation_mm":53.0,"sunshine_h":97.1,"hot_days":2.0,"cold_days":0.0,"tropical_nights":4.0,"year":2026,"month":6,"ym":"202606"},{"year":2026,"month":7,"ym":"202607","avg_temp":null,"avg_daily_max":null,"avg_daily_min":null,"month_max":null,"month_max_date":null,"month_min":null,"month_min_date":null,"total_rain_mm":null,"rain_days":null,"avg_wind_kmh":null,"prevailing_wind":null,"avg_humidity_pct":null,"sunshine_h":null,"hot_days":null,"cold_days":null,"tropical_nights":null},{"year":2026,"month":8,"ym":"202608","avg_temp":null,"avg_daily_max":null,"avg_daily_min":null,"month_max":null,"month_max_date":null,"month_min":null,"month_min_date":null,"total_rain_mm":null,"rain_days":null,"avg_wind_kmh":null,"prevailing_wind":null,"avg_humidity_pct":null,"sunshine_h":null,"hot_days":null,"cold_days":null,"tropical_nights":null}];
+
+/* ---------- helpers ---------- */
+const one = v => (Array.isArray(v) ? v[0] : v);
+const clean = s => String(s == null ? "" : s).replace(/\s+/g, " ").trim();
+const https = u => String(u || "").replace(/^http:\/\//i, "https://");
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const pad = n => String(n).padStart(2, "0");
+function parseJ(str){ try { return JSON.parse(str); } catch(e){ return null; } }
+function toast(msg){ const t = $("toast"); t.textContent = msg; t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 2200); }
+
+const SEASONS = [
+  { key:"春", months:"3–5月", color:"#2fbf71", note:"回暖潮濕、霧天回南天，早晚溫差大" },
+  { key:"夏", months:"6–8月", color:"#ff5d5d", note:"高溫高濕、雷暴颱風多，紫外線極強" },
+  { key:"秋", months:"9–11月", color:"#ffb020", note:"乾燥舒適、秋颱風險，早晚漸涼" },
+  { key:"冬", months:"12–2月", color:"#4f9dff", note:"清涼乾燥，寒潮可跌至10℃以下" }
+];
+
+function dressLevel(t, h){
+  let lvl;
+  if (t < 8)        lvl = { n:1, name:"嚴寒", color:"#5b7bd5", cloth:"羽絨服、厚大衣" };
+  else if (t < 13)  lvl = { n:2, name:"冷",   color:"#4f9dff", cloth:"呢大衣/厚夾克+毛衣" };
+  else if (t < 17)  lvl = { n:3, name:"較冷", color:"#8fd0ff", cloth:"風衣/夾克+長袖" };
+  else if (t < 21)  lvl = { n:4, name:"涼",   color:"#2fbf71", cloth:"薄外套/針織衫" };
+  else if (t < 25)  lvl = { n:5, name:"舒適", color:"#7fd34d", cloth:"短袖/薄長袖" };
+  else if (t < 29)  lvl = { n:6, name:"較熱", color:"#ffb020", cloth:"短袖清涼裝" };
+  else if (t < 32)  lvl = { n:7, name:"熱",   color:"#ff8a5c", cloth:"速乾夏裝+防曬" };
+  else              lvl = { n:8, name:"酷熱", color:"#ff5d5d", cloth:"清涼透氣+防暴曬" };
+  let note = "";
+  if (h != null && h >= 85) note = "濕度極高，體感悶熱，宜速乾面料";
+  else if (h != null && h <= 60) note = "較乾燥，注意補水";
+  return { lvl, note };
+}
+
+/* ---------- parse: allweather ---------- */
+function parseAllweather(j){
+  const out = { brief:null, days:[], todayDesc:"", situation:"", uvi:null, warns:[] };
+  const b = parseJ(j.c_actual_brief);
+  if (b && b.ActualWeatherBrief && b.ActualWeatherBrief.Custom){
+    const c = one(b.ActualWeatherBrief.Custom);
+    out.brief = {
+      time: clean(one(c.ValidFor)),
+      temp: one(one(c.Temperature).Value),
+      hum:  one(one(c.Humidity).Value),
+      wind: one(one(c.WindSpeed).Value),
+      windDesc: clean(one(c.WindSpeed).WindSpeedDescription),
+      windDir: clean(one(c.WindDirection).Value),
+      windFull: clean(one(c.WindDirection).WindDescription),
+      icon: https(one(one(c.Icon).IconURL)),
+      status: clean(one(c.WeatherStatus)),
+      feels: clean(one(c.FeelsLikeDescription))
+    };
+  }
+  const f7 = parseJ(j.c_7daysforecast);
+  if (f7 && f7.SevenDaysForecast && f7.SevenDaysForecast.Custom){
+    const c = one(f7.SevenDaysForecast.Custom);
+    out.issued = clean(one(c.IssuedTime));
+    (c.WeatherForecast || []).forEach(d => {
+      const T = {}; (d.Temperature||[]).forEach(t => T[t.Type[0]] = one(t.Value));
+      const H = {}; (d.Humidity||[]).forEach(t => H[t.Type[0]] = one(t.Value));
+      out.days.push({
+        date: one(d.ValidFor), dow: one(d.c_DayOfWeek),
+        icon: https(one(one(d.Icon).IconURL)), status: one(d.WeatherStatus),
+        tmax: T["1"], tmin: T["2"], hmax: H["1"], hmin: H["2"],
+        desc: clean(one(d.WeatherDescription))
+      });
+    });
+  }
+  const fc = parseJ(j.c_forecast);
+  if (fc && fc.ActualForecast && fc.ActualForecast.Custom){
+    const c = one(fc.ActualForecast.Custom);
+    out.situation = clean(one(c.TodaySituation));
+    const arr = c.WeatherForecast || [];
+    if (arr.length) out.todayDesc = clean(one(one(arr[0]).WeatherDescription));
+  }
+  const uvi = parseJ(j.c_actualUVI);
+  if (uvi && uvi["ActualUV-Index"] && uvi["ActualUV-Index"].Custom){
+    const rep = one(one(uvi["ActualUV-Index"].Custom).ActualUVBReport);
+    out.uvi = { time: clean(one(rep.RecordTime)), value: one(one(rep["UV-Index"]).Value), icon: https(one(one(rep.Icon).IconURL)) };
+  }
+  const wmap = [
+    ["c_typhoon", "TyphoonWarning", "TropicalCyclone", "颱風"],
+    ["c_rainstorm", "RainstormWarning", "Rainstorm", "暴雨"],
+    ["c_thunderstorm", "ThunderstormWarning", "Thunderstorm", "雷暴"],
+    ["c_monsoon", "MonsoonWarning", "Monsoon", "季候風"],
+    ["c_stormsurge", "StormsurgeWarning", "Stormsurge", "風暴潮"]
+  ];
+  wmap.forEach(([key, root, node, label]) => {
+    const o = parseJ(j[key]);
+    if (!o || !o[root] || !o[root].Custom) return;
+    const c = one(o[root].Custom);
+    const w = c[node] ? one(c[node]) : null;
+    if (!w) return;
+    out.warns.push({ label, on: String(one(w.Inforce)) === "1", desc: clean(one(w.Description)) });
+  });
+  return out;
+}
+
+/* ---------- parse: ho_api ---------- */
+function parseHoApi(j){
+  const out = { time:"", stations: [] };
+  if (!j || !j.IQA || !j.IQA.Custom) return out;
+  out.time = clean(one(j.IQA.System && one(j.IQA.System).SysPubdate));
+  const rt = one(j.IQA.Custom).ReportTime;
+  if (rt) out.reportTime = `${one(rt.Year)}-${pad(one(rt.Month))}-${pad(one(rt.Day))} ${pad(one(rt.Hour))}:00`;
+  (one(j.IQA.Custom).AQIReport || []).forEach(r => {
+    const s = one(r.Station);
+    if (!s) return;
+    const el = s.Element ? one(s.Element) : {};
+    const conc = {};
+    Object.keys(el || {}).forEach(k => {
+      const e = one(el[k]);
+      if (e && e.Concentration) conc[k] = { c: clean(one(e.Concentration)._), aqi: clean(one(e.AQI)) };
+    });
+    out.stations.push({
+      code: s.code, type: clean(one(s.type).Chinese), name: clean(one(s.Stationname).Chinese),
+      idx: one(one(s.RealTimeIndex).Value), desc: clean(one(one(s.RealTimeIndex).AQIDescription).Chinese),
+      pollutant: clean(one(one(s.RealTimeIndex).Pollutant)), conc
+    });
+  });
+  return out;
+}
+
+/* ---------- parse: foreiqa ---------- */
+function parseForeIqa(j){
+  const out = { time:"", stations: [], comp: null };
+  if (!j || !j.ForecastIQA || !j.ForecastIQA.Custom) return out;
+  const c = one(j.ForecastIQA.Custom);
+  out.time = clean(one(j.ForecastIQA.System && one(j.ForecastIQA.System).SysPubdate));
+  out.reportDesc = clean(one(c.ReportDescription));
+  (c.AQIForecastReport || []).forEach(r => {
+    const s = one(r.Station); const f = one(s.AQIForecast);
+    out.stations.push({ name: clean(one(s.Stationname)), range: clean(one(f.Value)), desc: clean(one(f.AQIForecastDescription)), valid: clean(one(f.ValidFor)) });
+  });
+  const cp = one(c.Complementary);
+  if (cp) out.comp = { level: clean(one(cp.Level)), sensitive: clean(one(cp.SensitivePopulationGroups)), general: clean(one(cp.GeneralPublic)) };
+  return out;
+}
+
+/* ---------- condition theme ---------- */
+function condOf(text, tmax){
+  const s = text || "";
+  if (/雷暴|雷/.test(s)) return "storm";
+  if (/雨|驟雨/.test(s)) return "rain";
+  if (/晴/.test(s)) return "sunny";
+  if (/雲|陰/.test(s)) return "cloudy";
+  if (tmax >= 33) return "heat";
+  return "sunny";
+}
+
+/* ---------- mini SVG charts ---------- */
+function svgLine(el, labels, series){
+  const W = 460, H = 190, P = { l: 34, r: 10, t: 14, b: 24 };
+  const iw = W - P.l - P.r, ih = H - P.t - P.b;
+  const all = [].concat(...series.map(s => s.data.filter(v => v != null)));
+  if (!all.length) return;
+  let min = Math.min(...all), max = Math.max(...all);
+  const span = (max - min) || 10; min -= span * .12; max += span * .12;
+  const X = i => P.l + i * iw / (labels.length - 1);
+  const Y = v => P.t + ih - (v - min) / (max - min) * ih;
+  let s = `<svg width="100%" viewBox="0 0 ${W} ${H}" style="min-width:${W}px">`;
+  for (let g = 0; g <= 4; g++){
+    const gy = P.t + ih * g / 4, gv = max - (max - min) * g / 4;
+    s += `<line x1="${P.l}" y1="${gy}" x2="${P.l+iw}" y2="${gy}" stroke="#e5edf7"/><text x="${P.l-5}" y="${gy+3}" text-anchor="end" font-size="9" fill="#8ba6c7">${gv.toFixed(0)}</text>`;
+  }
+  labels.forEach((lb, i) => { s += `<text x="${X(i)}" y="${H-7}" text-anchor="middle" font-size="9" fill="#8ba6c7">${esc(lb)}</text>`; });
+  series.forEach(ser => {
+    let path = "";
+    ser.data.forEach((v, i) => { if (v == null) return; path += `${path ? "L" : "M"}${X(i).toFixed(1)},${Y(v).toFixed(1)} `; });
+    s += `<path d="${path}" fill="none" stroke="${ser.color}" stroke-width="2.4" stroke-linejoin="round"/>`;
+    ser.data.forEach((v, i) => { if (v == null) return; s += `<circle cx="${X(i).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="2.4" fill="#fff" stroke="${ser.color}" stroke-width="1.6"/>`; });
+  });
+  s += `</svg>`;
+  el.innerHTML = s;
+}
+function svgBars(el, labels, data, colorFn){
+  const W = 460, H = 160, P = { l: 34, r: 8, t: 10, b: 24 };
+  const iw = W - P.l - P.r, ih = H - P.t - P.b;
+  const vals = data.filter(v => v != null);
+  if (!vals.length) return;
+  const max = Math.max(...vals) * 1.15 || 100;
+  const bw = iw / labels.length;
+  let s = `<svg width="100%" viewBox="0 0 ${W} ${H}" style="min-width:${W}px">`;
+  for (let g = 0; g <= 4; g++){
+    const gy = P.t + ih * g / 4, gv = max - max * g / 4;
+    s += `<line x1="${P.l}" y1="${gy}" x2="${P.l+iw}" y2="${gy}" stroke="#e5edf7"/><text x="${P.l-5}" y="${gy+3}" text-anchor="end" font-size="9" fill="#8ba6c7">${gv.toFixed(0)}</text>`;
+  }
+  labels.forEach((lb, i) => { s += `<text x="${P.l + bw*i + bw/2}" y="${H-7}" text-anchor="middle" font-size="9" fill="#8ba6c7">${esc(lb)}</text>`; });
+  data.forEach((v, i) => {
+    if (v == null) return;
+    const bh = v / max * ih, x = P.l + bw*i + bw*.2, w = bw*.6, y = P.t + ih - bh;
+    s += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${bh.toFixed(1)}" rx="2.5" fill="${colorFn ? colorFn(v) : "#4f9dff"}"/>`;
+    s += `<text x="${(x+w/2).toFixed(1)}" y="${(y-3).toFixed(1)}" text-anchor="middle" font-size="8" fill="#5b7699">${v}</text>`;
+  });
+  s += `</svg>`;
+  el.innerHTML = s;
+}
+
+/* ============================================================
+   渲染
+   ============================================================ */
+let state = { aw:null, aqi:null, fore:null, next:0, lastOk:null };
+
+function aqiColor(v){ v = parseFloat(v); if (isNaN(v)) return "#8ba6c7"; if (v<=50) return "#2fbf71"; if (v<=100) return "#ffb020"; if (v<=150) return "#ff8a5c"; return "#ff5d5d"; }
+function aqiText(v){ v = parseFloat(v); if (isNaN(v)) return "—"; if (v<=50) return "良好"; if (v<=100) return "普通"; if (v<=150) return "不良"; return "非常不良"; }
+
+function renderHome(){
+  const aw = state.aw; if (!aw || !aw.brief) return;
+  const b = aw.brief;
+  const tmax = aw.days.length ? parseFloat(aw.days[0].tmax) : parseFloat(b.temp);
+  const cond = condOf(aw.todayDesc || aw.days[0]?.desc, tmax);
+  const hero = $("hero");
+  hero.className = "hero " + cond;
+  $("hTemp").textContent = b.temp;
+  $("hDesc").textContent = (aw.todayDesc || "").split("。")[0] + "。";
+  $("hSub").textContent = `體感 ${b.feels || "—"} · 更新 ${b.time}`;
+  $("hIcon").src = b.icon;
+  $("dHum").textContent = b.hum + "%";
+  $("dWind").textContent = `${b.windDir} ${b.wind}`;
+  $("dUvi").textContent = aw.uvi ? aw.uvi.value : "—";
+  const aqi = state.aqi;
+  let aqiVal = null;
+  if (aqi && aqi.stations.length){
+    const tg = aqi.stations.find(s => s.code === "TG") || aqi.stations[0];
+    aqiVal = parseFloat(tg.idx);
+    $("dAqi").textContent = aqiVal;
+    $("dAqi").style.color = aqiColor(aqiVal);
+  } else $("dAqi").textContent = "—";
+  /* warnings */
+  const ws = $("warnStrip");
+  ws.innerHTML = aw.warns.length ? aw.warns.map(w =>
+    `<span class="warn-pill ${w.on ? "on" : ""}">${esc(w.label)}${w.on ? " 生效中" : ""}</span>`).join("")
+    : `<span class="warn-pill">目前無生效警告</span>`;
+  $("todayNote").textContent = aw.situation ? "天氣形勢：" + aw.situation : "";
+  renderAqi();
+}
+
+function renderAqi(){
+  const aqi = state.aqi; if (!aqi || !aqi.stations.length) return;
+  $("aqiTime").textContent = "時指數 " + (aqi.reportTime || aqi.time);
+  $("aqiScroll").innerHTML = aqi.stations.map(s => {
+    const col = aqiColor(s.idx);
+    const pol = Object.keys(s.conc || {}).filter(k => s.conc[k].c && s.conc[k].c !== "---")
+      .map(k => `${k} ${s.conc[k].c}`).join(" · ");
+    return `<div class="aqi-chip">
+      <div class="n">${esc(s.name)}</div>
+      <div class="b"><div class="aqi-dot" style="background:${col}">${s.idx}</div><span class="l" style="color:${col}">${esc(aqiText(s.idx))}</span></div>
+      <div class="p">${esc(pol || "—")}</div>
+    </div>`;
+  }).join("");
+  const f = state.fore;
+  if (f){
+    $("aqiNote").innerHTML =
+      `<b style="color:var(--brand)">${esc(f.reportDesc || "今日空氣質素預測")}</b>（${esc(f.time)}）<br>` +
+      f.stations.map(s => `${esc(s.name)}：<b>${esc(s.range)}</b> ${esc(s.desc)}`).join(" · ") +
+      (f.comp ? `<br>敏感人群：${esc(f.comp.sensitive)} 一般公眾：${esc(f.comp.general)}` : "");
+  }
+}
+
+function renderForecast(){
+  const aw = state.aw; if (!aw) return;
+  $("fcIssued").textContent = "發佈 " + (aw.issued || "-");
+  const need = ["08-19","08-20","08-21","08-22","08-23","08-24"];
+  const dowList = ["日","一","二","三","四","五","六"];
+  $("fList").innerHTML = aw.days.map((d, i) => {
+    const dl = dressLevel(parseFloat(d.tmax), parseFloat(d.hmax)).lvl;
+    const focus = need.includes(d.date.slice(5));
+    const dayLbl = i === 0 ? "今日" : (i === 1 ? "明日" : "週" + d.dow);
+    return `<div class="f-row ${focus ? "hot" : ""}">
+      <div class="day">${dayLbl}<small>${d.date.slice(5).replace("-", "/")}</small></div>
+      <img src="${esc(d.icon)}" alt="">
+      <div class="desc">${esc(d.desc.slice(0, 22))}${d.desc.length > 22 ? "…" : ""}</div>
+      <div>
+        <div class="tmp"><span class="hi">${d.tmax}°</span><span class="lo">${d.tmin}°</span>${focus ? `<span class="badge-focus">出行</span>` : ""}</div>
+        <div class="hum">濕 ${d.hmax}%/${d.hmin}% · ${esc(dl.name)}</div>
+      </div>
+    </div>`;
+  }).join("");
+  $("fcNote").innerHTML =
+    `<b>今日：</b>${esc(aw.todayDesc || "—")}<br>` +
+    (aw.situation ? `<b>形勢：</b>${esc(aw.situation)}<br>` : "") +
+    `<b>8.23–8.24：</b>SMG 預報僅覆蓋未來 7 日，官方更新後將自動顯示（每 5 分鐘動態刷新）。`;
+  /* travel */
+  const want = {}; aw.days.forEach(d => { if (need.includes(d.date.slice(5))) want[d.date.slice(5)] = d; });
+  const dowToday = new Date();
+  $("tGrid").innerHTML = need.map((md, i) => {
+    const d = want[md];
+    if (!d){
+      const dw = dowList[new Date(2026, 7, 19 + i).getDay()];
+      return `<div class="t-card pending"><div class="td">8月${md.slice(3)}日 <small>週${dw}</small></div>
+        <div class="tm">官方預報尚未發佈</div>
+        <ul><li>將於官方更新後自動顯示</li><li>開啟本頁即每 5 分鐘刷新</li></ul></div>`;
+    }
+    const tmax = parseFloat(d.tmax), hmax = parseFloat(d.hmax);
+    const desc = d.desc;
+    const tips = [];
+    const hasRain = /雨|雷暴|驟雨/.test(desc);
+    const hasThunder = /雷暴|雷/.test(desc);
+    const windM = desc.match(/吹\s*(\d)\s*至\s*(\d)\s*級/);
+    const windLv = windM ? Math.max(+windM[1], +windM[2]) : 0;
+    if (hasRain) tips.push("隨身攜帶雨具");
+    if (hasThunder) tips.push("雷暴時遠離空曠高地及水邊");
+    if (tmax >= 33) tips.push("酷熱，注意防暑補水");
+    if (tmax >= 30) tips.push("高溫悶熱，避免午間暴曬");
+    if (hmax >= 90) tips.push("濕度極高，選速乾透氣衣物");
+    if (windLv >= 5) tips.push("風力強有陣風，留意海上活動");
+    if (!tips.length) tips.push("注意防曬與補水");
+    const dl = dressLevel(tmax, hmax).lvl;
+    return `<div class="t-card">
+      <img src="${esc(d.icon)}" alt="">
+      <div class="td">8月${md.slice(3)}日 <small>週${d.dow}</small></div>
+      <div class="tm">${d.tmax}°/${d.tmin}° · 濕${d.hmax}%${hasRain ? " · ☔" : ""}</div>
+      <span class="tip" style="color:${dl.color};border:1px solid ${dl.color}55;background:${dl.color}18">穿衣${dl.n}級${dl.name}</span>
+      <ul>${tips.map(t => `<li>${esc(t)}</li>`).join("")}</ul>
+    </div>`;
+  }).join("");
+}
+
+function renderMonthly(){
+  const rows = MONTHLY;
+  const head = ["月份","均溫","最高","最低","濕度","雨量","風速","風向","穿衣"];
+  let html = "<tr><th>" + head.join("</th><th>") + "</th></tr>";
+  rows.forEach(m => {
+    const dl = m.avg_temp != null ? dressLevel(m.avg_temp, m.avg_humidity_pct).lvl : null;
+    html += `<tr>
+      <td><b>${m.year}.${pad(m.month)}</b></td>
+      <td>${m.avg_temp ?? "—"}</td>
+      <td>${m.avg_daily_max ?? "—"}</td>
+      <td>${m.avg_daily_min ?? "—"}</td>
+      <td>${m.avg_humidity_pct != null ? m.avg_humidity_pct + "%" : "—"}</td>
+      <td>${m.total_rain_mm ?? "—"}</td>
+      <td>${m.avg_wind_kmh ?? "—"}</td>
+      <td>${m.prevailing_wind || "—"}</td>
+      <td>${dl ? `<span class="lv" style="color:${dl.color};background:${dl.color}18">${dl.n}級</span>` : "—"}</td>
+    </tr>`;
+  });
+  $("monthTable").innerHTML = html;
+  const labels = rows.map(m => `${m.month}月`);
+  svgLine($("tempChart"), labels, [
+    { color:"#ff8a5c", data: rows.map(m => m.avg_daily_max) },
+    { color:"#0aa8e0", data: rows.map(m => m.avg_temp) },
+    { color:"#4f9dff", data: rows.map(m => m.avg_daily_min) }
+  ]);
+  svgBars($("humChart"), labels, rows.map(m => m.avg_humidity_pct), v => v >= 85 ? "rgba(255,93,93,.65)" : v <= 60 ? "rgba(79,157,255,.6)" : "rgba(10,168,224,.6)");
+  svgBars($("rainChart"), labels, rows.map(m => m.total_rain_mm), v => v >= 100 ? "rgba(10,168,224,.8)" : "rgba(79,157,255,.7)");
+  /* seasons */
+  const pick = ms => MONTHLY.filter(m => ms.includes(m.month));
+  const avg = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null;
+  const cards = [
+    { s: SEASONS[0], ms: [3,4,5], extra: "回南天地板潮濕注意防滑" },
+    { s: SEASONS[1], ms: [6,7,8], extra: "颱風季留意風暴信號，避免海邊活動" },
+    { s: SEASONS[2], ms: [9,10,11], extra: "秋颱風險仍在，早晚備薄外套" },
+    { s: SEASONS[3], ms: [12,1,2], extra: "寒潮期氣溫可跌至10℃以下" }
+  ];
+  $("seasons").innerHTML = cards.map(({ s, ms, extra }) => {
+    const d = pick(ms);
+    const t = avg(d.map(x => x.avg_temp));
+    const h = avg(d.map(x => x.avg_humidity_pct));
+    const dl = t != null ? dressLevel(t, h).lvl : null;
+    return `<div class="season" style="border-top:3px solid ${s.color}">
+      <h4 style="color:${s.color}">${s.key}季（${s.months}）</h4>
+      <div class="rg">近18月均溫 ${t != null ? t.toFixed(1) + "℃" : "—"} · 濕度 ${h != null ? h.toFixed(0) + "%" : "—"}</div>
+      <ul><li>${s.note}</li><li>${dl ? `穿衣：<b style="color:${dl.color}">${dl.n}級${dl.name}</b>` : ""}</li><li>${extra}</li></ul>
+    </div>`;
+  }).join("");
+}
+
+function renderAbout(){
+  $("apiList").innerHTML = [
+    ["天氣實況/7日預報/警告", "new-api.smg.gov.mo · weather_v2/allweather"],
+    ["實時空氣質素指數", "weather_v2/ho_api"],
+    ["今日空氣質素預測", "weather_v2/foreiqa"],
+    ["月度觀測", "SMG《氣象觀測月報》PDF"]
+  ].map(a => `<li><b>${a[0]}</b><br>${a[1]}</li>`).join("");
+}
+
+function renderAll(){ renderHome(); renderForecast(); renderMonthly(); renderAbout(); }
+
+/* ============================================================
+   数据加载（动态刷新）
+   ============================================================ */
+async function postJSON(url){
+  const r = await fetch(url, { method:"POST", headers:{ "Content-Type":"application/json" }, body:"{}" });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+let loading = false;
+async function loadAll(manual){
+  if (loading) return; loading = true;
+  setStatus(false, "刷新中");
+  try {
+    const [aw, aqi, fore] = await Promise.all([
+      postJSON(API.allweather).catch(() => null),
+      postJSON(API.hoApi).catch(() => null),
+      postJSON(API.foreIqa).catch(() => null)
+    ]);
+    if (aw) state.aw = parseAllweather(aw);
+    if (aqi) state.aqi = parseHoApi(aqi);
+    if (fore) state.fore = parseForeIqa(fore);
+    state.lastOk = new Date();
+    renderAll();
+    setStatus(true, "已更新");
+    if (manual) toast("已更新至 " + fmtTime(state.lastOk));
+  } catch(e){
+    setStatus(false, "刷新失敗");
+    if (manual) toast("刷新失敗：" + e.message);
+  }
+  loading = false;
+  state.next = Date.now() + REFRESH_MS;
+}
+function setStatus(ok, txt){
+  $("statusDot").parentElement.classList.toggle("off", !ok);
+  $("statusTxt").textContent = txt;
+}
+function fmtTime(d){ return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
+function refreshNow(){ loadAll(true); }
+
+/* 倒计时 */
+setInterval(() => {
+  if (!state.next) return;
+  const left = Math.max(0, Math.ceil((state.next - Date.now())/1000));
+  const el = $("cnt");
+  if (el) el.textContent = ` · ${Math.floor(left/60)}:${pad(left%60)}`;
+}, 1000);
+
+/* ============================================================
+   导航 / 下拉刷新 / 启动
+   ============================================================ */
+function switchTab(name){
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("on"));
+  document.querySelectorAll("nav a").forEach(a => a.classList.remove("on"));
+  const tab = $("tab-" + name); if (tab) tab.classList.add("on");
+  const link = document.querySelector(`nav a[data-tab="${name}"]`); if (link) link.classList.add("on");
+  history.replaceState(null, "", "#" + name);
+  window.scrollTo({ top: 0 });
+}
+document.querySelectorAll("nav a").forEach(a => {
+  a.addEventListener("click", e => { e.preventDefault(); switchTab(a.dataset.tab); });
+});
+(function initTab(){
+  const h = location.hash.replace("#", "");
+  if (["home","forecast","history","about"].includes(h)) switchTab(h);
+  else switchTab("home");
+})();
+
+/* 下拉刷新（列表顶部下拉手势） */
+(function pullRefresh(){
+  let startY = 0, pulling = false;
+  const tip = $("pullTip");
+  window.addEventListener("touchstart", e => { if (window.scrollY <= 0) { startY = e.touches[0].clientY; pulling = true; } }, { passive: true });
+  window.addEventListener("touchmove", e => {
+    if (!pulling || window.scrollY > 0) return;
+    const dy = e.touches[0].clientY - startY;
+    if (dy > 70) { tip.textContent = "鬆開立即刷新天氣數據"; tip.classList.add("show"); }
+    else if (dy > 20) { tip.textContent = "↓ 下拉刷新天氣數據"; tip.classList.add("show"); }
+    else tip.classList.remove("show");
+  }, { passive: true });
+  window.addEventListener("touchend", () => {
+    if (tip.classList.contains("show")){ tip.classList.remove("show"); refreshNow(); }
+    pulling = false;
+  });
+})();
+
+/* Service Worker（PWA 離線快取） */
+if ("serviceWorker" in navigator){
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(() => {});
+  });
+}
+
+/* 启动：先渲染离线快照，再拉取实时 */
+(function boot(){
+  try {
+    if (FALLBACK.allweather) state.aw = parseAllweather(FALLBACK.allweather);
+    if (FALLBACK.hoApi) state.aqi = parseHoApi(FALLBACK.hoApi);
+    if (FALLBACK.foreIqa) state.fore = parseForeIqa(FALLBACK.foreIqa);
+    renderAll();
+  } catch(e){ console.error("snapshot render failed", e); }
+  refreshNow();
+  setInterval(() => loadAll(false), REFRESH_MS);
+})();
+</script>
+</body>
+</html>
